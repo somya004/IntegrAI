@@ -1,0 +1,7 @@
+{
+  "KYC": ["v1", "v2"],
+  "GST": ["v1"],
+  "Payment": ["v1", "v2", "v3"],
+  "Fraud": ["v1", "v2"],
+  "Compliance": ["v1"]
+}
