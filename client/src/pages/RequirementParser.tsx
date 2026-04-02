@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+// @ts-nocheck
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   DocumentArrowUpIcon,

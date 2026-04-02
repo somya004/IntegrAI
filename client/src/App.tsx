@@ -12,7 +12,7 @@ import Simulation from './pages/Simulation';
 import AuditLogs from './pages/AuditLogs';
 import { useAppState } from './hooks/useAppState';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { MotionWrapper, pageTransition } from './components/MotionWrapper';
+import MotionWrapper, { pageTransition } from './components/MotionWrapper';
 
 const App: React.FC = () => {
   const { 

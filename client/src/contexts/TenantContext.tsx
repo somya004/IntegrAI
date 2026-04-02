@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Client, ClientConfiguration, TenantContext } from '../types/config';
 
+const tenantContext = createContext<TenantContext | undefined>(undefined);
+
 const TenantContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -134,14 +136,14 @@ const TenantContextProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   return (
-    <TenantContext.Provider value={contextValue}>
+    <tenantContext.Provider value={contextValue}>
       {children}
-    </TenantContext.Provider>
+    </tenantContext.Provider>
   );
 };
 
 export const useTenant = (): TenantContext => {
-  const context = useContext(TenantContext);
+  const context = useContext(tenantContext);
   if (!context) {
     throw new Error('useTenant must be used within a TenantContextProvider');
   }

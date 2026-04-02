@@ -259,6 +259,8 @@ export interface AuditLog {
   category: 'config' | 'version' | 'client' | 'system' | 'security' | 'integration';
   severity: 'info' | 'warning' | 'error' | 'critical';
   userId?: string;
+  user?: string;
+  tenant?: string;
   clientId?: string;
   details: {
     oldValue?: any;
