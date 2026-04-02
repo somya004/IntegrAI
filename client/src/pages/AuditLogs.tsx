@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ChartBarIcon,
@@ -15,11 +15,7 @@ const AuditLogs: React.FC<AuditLogsProps> = ({ selectedTenant }) => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAuditLogs();
-  }, [selectedTenant]);
-
-  const loadAuditLogs = async () => {
+  const loadAuditLogs = useCallback(async () => {
     try {
       const result = await apiService.getAuditLogs({ tenant: selectedTenant });
       setLogs(result.logs);
@@ -28,7 +24,11 @@ const AuditLogs: React.FC<AuditLogsProps> = ({ selectedTenant }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedTenant]);
+
+  useEffect(() => {
+    loadAuditLogs();
+  }, [loadAuditLogs, selectedTenant]);
 
   if (loading) {
     return (

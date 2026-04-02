@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   WrenchScrewdriverIcon,
@@ -20,14 +20,14 @@ const Builder: React.FC<BuilderProps> = ({ services, onConfigGenerated, onNext }
   const [isGenerating, setIsGenerating] = useState(false);
   const [configs, setConfigs] = useState<GeneratedConfig[]>([]);
 
-  const versions: { [key: string]: string[] } = {
+  const versions = useMemo(() => ({
     'KYC': ['v1', 'v2'],
     'GST': ['v1'],
     'Payment': ['v1', 'v2', 'v3'],
     'Fraud': ['v1', 'v2']
-  };
+  }), []);
 
-  const defaultMappings: { [key: string]: { [key: string]: string } } = {
+  const defaultMappings = useMemo(() => ({
     'KYC': {
       'name': 'fullName',
       'dob': 'dateOfBirth',
@@ -53,26 +53,27 @@ const Builder: React.FC<BuilderProps> = ({ services, onConfigGenerated, onNext }
       'pan': 'permanentAccountNumber',
       'email': 'mailAddress'
     }
-  };
+  }), []);
 
   React.useEffect(() => {
     // Set default versions
     const defaults: { [key: string]: string } = {};
     services.forEach(service => {
-      defaults[service.name] = versions[service.name]?.[0] || 'v1';
+      const serviceVersions = versions[service.name as keyof typeof versions] || ['v1'];
+      defaults[service.name] = serviceVersions[0] || 'v1';
     });
     setSelectedVersions(defaults);
 
     // Set default mappings
     const mappings: { [key: string]: string } = {};
     services.forEach(service => {
-      const serviceMappings = defaultMappings[service.name] || {};
+      const serviceMappings = defaultMappings[service.name as keyof typeof defaultMappings] || {};
       Object.entries(serviceMappings).forEach(([clientField, apiField]) => {
-        mappings[`${service.name}_${clientField}`] = apiField;
+        mappings[`${service.name}_${clientField}`] = apiField as string;
       });
     });
     setFieldMappings(mappings);
-  }, [services]);
+  }, [services, defaultMappings, versions]);
 
   const handleVersionChange = (service: string, version: string) => {
     setSelectedVersions(prev => ({ ...prev, [service]: version }));
@@ -168,7 +169,7 @@ const Builder: React.FC<BuilderProps> = ({ services, onConfigGenerated, onNext }
                 onChange={(e) => handleVersionChange(service.name, e.target.value)}
                 className="input-field"
               >
-                {versions[service.name]?.map((version) => (
+                {versions[service.name as keyof typeof versions]?.map((version: string) => (
                   <option key={version} value={version}>
                     {version}
                   </option>
