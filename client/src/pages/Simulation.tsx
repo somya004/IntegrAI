@@ -9,7 +9,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiService } from '../services/api';
 import { GeneratedConfig } from '../types/config';
-import { Card } from '../components/Card';
 
 interface SimulationProps {
   configs: GeneratedConfig[];

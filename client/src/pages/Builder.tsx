@@ -7,8 +7,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiService } from '../services/api';
 import { Service, GeneratedConfig } from '../types/config';
-import { generateFieldMappings, getAvailableVersions } from '../utils/mapping';
-import { Card } from '../components/Card';
 
 interface BuilderProps {
   services: Service[];

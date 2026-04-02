@@ -5,8 +5,7 @@ import {
   GeneratedConfig, 
   SimulationRequest, 
   SimulationResult, 
-  AuditLog,
-  ApiResponse 
+  AuditLog
 } from '../types/config';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';

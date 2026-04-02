@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ChartBarIcon,
-  ClockIcon,
-  UserIcon 
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { apiService } from '../services/api';
 import { AuditLog } from '../types/config';
-import { Table, StatusBadge } from '../components/Table';
 
 interface AuditLogsProps {
   selectedTenant: string;

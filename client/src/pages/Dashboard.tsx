@@ -7,7 +7,6 @@ import {
   ChartBarIcon 
 } from '@heroicons/react/24/outline';
 import { ParsedDocument } from '../types/config';
-import { Card } from '../components/Card';
 
 interface DashboardProps {
   data: ParsedDocument | null;

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Service, GeneratedConfig, ParsedDocument, SimulationResult, AppState } from '../types/config';
+import { GeneratedConfig, ParsedDocument, SimulationResult } from '../types/config';
 
 export const useAppState = () => {
   const [currentStep, setCurrentStep] = useState<string>('upload');

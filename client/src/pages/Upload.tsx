@@ -7,7 +7,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiService } from '../services/api';
 import { ParsedDocument } from '../types/config';
-import { Card } from '../components/Card';
 
 interface UploadProps {
   onParsed: (data: ParsedDocument) => void;
