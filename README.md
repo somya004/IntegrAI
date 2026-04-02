@@ -1,144 +1,114 @@
 # ConfigAI - AI-Powered Enterprise Integration Orchestration Platform
 
-## 🎯 Overview
+## 🎯 Problem Statement
 
-ConfigAI is a full-stack enterprise platform that converts requirement documents (BRD, API specs, SOW) into integration configurations automatically using AI simulation. The platform enables "Integration from Intent, Not Code" - upload requirements and get production-ready integrations.
+Enterprise integration development is complex, time-consuming, and error-prone. Organizations spend weeks manually configuring APIs, mapping fields, and testing integrations. ConfigAI revolutionizes this process by converting requirement documents into production-ready integrations using AI-powered automation.
 
-## 🏗️ Architecture
+## 🚀 Solution Overview
 
-### Frontend (React + TypeScript + Tailwind CSS)
-- Modern, responsive dashboard UI
-- Glassmorphism design with dark mode
-- Smooth animations with Framer Motion
-- Component-based architecture
+ConfigAI is a full-stack enterprise platform that enables **"Integration from Intent, Not Code"**. Upload business requirement documents (BRD, API specs, SOW) and get automatically generated, tested, and production-ready integrations in minutes.
+
+### ✨ Unique Selling Points
+
+- **AI-Powered Parsing**: Automatically detects services from requirement documents
+- **Visual Configuration**: Intuitive drag-and-drop field mapping interface  
+- **Realistic Simulation**: Test integrations with mock APIs that mirror real-world behavior
+- **Multi-Tenant Support**: Manage configurations for multiple organizations
+- **Production-Ready Output**: Downloadable JSON configurations ready for deployment
+
+## 🏗️ Tech Stack
+
+### Frontend (React + TypeScript)
+- **React 18** with TypeScript for type safety
+- **Tailwind CSS** for modern, responsive design
+- **Framer Motion** for smooth animations
+- **Heroicons** for consistent iconography
+- **React Router** for seamless navigation
+- **Axios** for API communication
 
 ### Backend (Node.js + Express)
-- RESTful APIs for all features
-- Rule-based AI simulation logic
-- MongoDB integration
-- Mock service simulation
+- **Express.js** for RESTful API architecture
+- **MongoDB** for configuration storage
+- **AI Simulation** with realistic API behavior
+- **Multi-tenant architecture** for enterprise scaling
+- **Audit logging** for compliance and tracking
 
-### Database (MongoDB)
-- Multi-tenant configuration storage
-- Audit logging
-- Adapter registry
-- Version management
+### Deployment
+- **Vercel** for frontend deployment
+- **Render** for backend hosting
+- **GitHub** for version control and CI/CD
 
-## 🚀 Features
+## 🎯 Features
 
-### 1. Document Upload & AI Parsing
+### 📄 Document Upload & AI Parsing
 - Upload .txt files or paste text directly
 - AI-powered service detection (KYC, GST, Payment, Fraud)
 - Automatic endpoint identification
 - Mandatory/Optional service classification
 
-### 2. Integration Registry
+### ⚙️ Integration Registry
 - Service adapters with version management
 - API endpoint catalog
 - Dynamic version selection
 
-### 3. Auto-Configuration Engine
+### 🔧 Auto-Configuration Engine
 - Smart field mapping with fuzzy matching
 - Visual mapping interface
 - Auto-mapped field highlighting
 
-### 4. Configuration Generator
+### 📦 Configuration Generator
 - Dynamic JSON config generation
 - Downloadable configuration files
 - Production-ready output
 
-### 5. Simulation Lab
-- Mock API testing
-- Request/response visualization
-- Success/failure simulation
-- Performance metrics
+### 🧪 Simulation Lab
+- Realistic API testing with delays and success rates
+- Multiple service support (KYC, Bureau, Payments, etc.)
+- Performance metrics and response analysis
 
-### 6. Version Testing
-- API version comparison
-- Diff viewer for response changes
-- Migration testing
-
-### 7. Audit Logs
-- Complete activity tracking
-- Multi-tenant isolation
-- Action history with timestamps
-
-### 8. Analytics Dashboard
-- ROI metrics
-- Time saved calculations
-- Error reduction tracking
+### 📊 Audit Logs
+- Comprehensive activity tracking
+- Multi-tenant filtering
 - Performance analytics
 
-## 🛠️ Installation & Setup
+## 🚀 How It Works
+
+1. **Upload Requirements**: Paste or upload BRD/API specifications
+2. **AI Analysis**: ConfigAI detects services and requirements automatically
+3. **Visual Configuration**: Map fields using intuitive drag-and-drop interface
+4. **Generate Config**: Create production-ready integration configurations
+5. **Test & Deploy**: Simulate APIs and download ready-to-use configs
+
+## 🔧 Quick Start
 
 ### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (local or cloud instance)
+- Node.js 16+
 - npm or yarn
 
-### Backend Setup
+### Local Development
 
-1. Navigate to the project root:
 ```bash
-cd e:/confg
-```
+# Clone the repository
+git clone https://github.com/somya004/IntegrAI.git
+cd IntegrAI
 
-2. Install backend dependencies:
-```bash
+# Install dependencies
 npm install
-```
 
-3. Set up environment variables:
-```bash
-# Copy .env file and update if needed
-cp .env .env.local
-```
-
-4. Start the backend server:
-```bash
-npm run server
-```
-
-The backend will run on `http://localhost:5001`
-
-### Frontend Setup
-
-1. Navigate to client directory:
-```bash
-cd client
-```
-
-2. Install frontend dependencies:
-```bash
-npm install
-```
-
-3. Start the development server:
-```bash
-npm start
-```
-
-The frontend will run on `http://localhost:3000`
-
-### Development Mode
-
-To run both frontend and backend simultaneously:
-
-```bash
+# Start both frontend and backend
 npm run dev
 ```
 
-## 📊 Usage Flow
+### Individual Services
 
-1. **Upload Document**: Upload requirements document or paste text
-2. **AI Parsing**: System automatically detects services and endpoints
-3. **Configuration**: Review and customize field mappings
-4. **Testing**: Run simulations to validate integrations
-5. **Deployment**: Download production-ready configurations
-6. **Monitoring**: Track performance and analytics
+```bash
+# Frontend (React)
+cd client
+npm start
 
-## 🎨 UI Features
-
+# Backend (Node.js)
+cd server
+npm start
 - **Glassmorphism Design**: Modern glass-effect panels
 - **Animated Gradients**: Dynamic background animations
 - **Dark Mode**: Enterprise-friendly dark theme
