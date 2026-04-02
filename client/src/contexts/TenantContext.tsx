@@ -3,7 +3,7 @@ import { Client, ClientConfiguration, TenantContext } from '../types/config';
 
 const TenantContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
-  const [clients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [configurations, setConfigurations] = useState<Record<string, ClientConfiguration>>({});
 
   // Initialize with default clients
