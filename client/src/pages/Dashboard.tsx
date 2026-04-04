@@ -22,6 +22,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
     );
   }
 
+  // Ensure arrays exist with fallbacks
+  const services = Array.isArray(data?.services) ? data.services : [];
+  const requirements = Array.isArray(data?.requirements) ? data.requirements : [];
+  const summary = data?.summary || { mandatoryServices: 0, totalRequirements: 0 };
+  const totalDetected = data?.totalDetected || 0;
+
   const getServiceIcon = (serviceName: string) => {
     const icons: { [key: string]: string } = {
       'KYC': '🔍',
@@ -77,7 +83,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Services Detected</p>
-              <p className="text-2xl font-bold text-gray-900">{data.totalDetected}</p>
+              <p className="text-2xl font-bold text-gray-900">{totalDetected}</p>
             </div>
           </div>
         </motion.div>
@@ -94,7 +100,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Mandatory</p>
-              <p className="text-2xl font-bold text-gray-900">{data.summary.mandatoryServices}</p>
+              <p className="text-2xl font-bold text-gray-900">{summary.mandatoryServices}</p>
             </div>
           </div>
         </motion.div>
@@ -111,7 +117,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Requirements</p>
-              <p className="text-2xl font-bold text-gray-900">{data.summary.totalRequirements}</p>
+              <p className="text-2xl font-bold text-gray-900">{summary.totalRequirements}</p>
             </div>
           </div>
         </motion.div>
@@ -131,7 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Avg Confidence</p>
               <p className="text-2xl font-bold text-gray-900">
-                {Math.round(data.services.reduce((sum, s) => sum + s.confidence, 0) / data.services.length)}%
+                {services.length > 0 ? Math.round(services.reduce((sum, s) => sum + s.confidence, 0) / services.length) : 0}%
               </p>
             </div>
           </div>
@@ -142,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-8">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Detected Services</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {data.services.map((service, index) => (
+          {services.map((service, index) => (
             <motion.div
               key={service.name}
               initial={{ opacity: 0, x: -20 }}
@@ -152,11 +158,11 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center">
-                  <div className="text-2xl mr-3">{getServiceIcon(service.name)}</div>
+                  <div className="text-2xl mr-3">{getServiceIcon(service.name || 'Unknown')}</div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getConfidenceColor(service.confidence)}`}>
-                      {service.confidence}% confidence
+                    <h3 className="font-semibold text-gray-900">{service.name || 'Unknown Service'}</h3>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getConfidenceColor(service.confidence || 0)}`}>
+                      {service.confidence || 0}% confidence
                     </span>
                   </div>
                 </div>
@@ -168,11 +174,13 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
               <div className="mb-3">
                 <p className="text-sm text-gray-600 mb-2">Keywords found:</p>
                 <div className="flex flex-wrap gap-1">
-                  {service.keywords.map((keyword, i) => (
+                  {Array.isArray(service.keywords) ? service.keywords.map((keyword, i) => (
                     <span key={i} className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">
                       {keyword}
                     </span>
-                  ))}
+                  )) : (
+                    <span className="text-xs text-gray-500">No keywords found</span>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -181,11 +189,11 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
       </div>
 
       {/* Requirements */}
-      {data.requirements.length > 0 && (
+      {requirements.length > 0 && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Extracted Requirements</h2>
           <div className="space-y-4">
-            {data.requirements.map((req, index) => (
+            {requirements.map((req, index) => (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, y: 20 }}
@@ -195,10 +203,10 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onNext }) => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-gray-900 mb-2">{req.text}</p>
+                    <p className="text-gray-900 mb-2">{req?.text || 'No text available'}</p>
                     <div className="flex items-center space-x-4 text-sm">
-                      <span className="status-badge status-info">{req.type}</span>
-                      <span className="status-badge status-warning">{req.category}</span>
+                      <span className="status-badge status-info">{req?.type || 'Unknown'}</span>
+                      <span className="status-badge status-warning">{req?.category || 'Unknown'}</span>
                     </div>
                   </div>
                 </div>

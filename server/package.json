@@ -6,6 +6,12 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "adapters": "node adapters.js",
+    "nlp-parser": "node nlp-parser.js",
+    "field-mapping": "node field-mapping.js",
+    "multi-tenant": "node multi-tenant.js",
+    "enhanced-simulation": "node enhanced-simulation.js",
+    "security-audit": "node security-audit.js",
     "test": "jest"
   },
   "dependencies": {

@@ -7,468 +7,434 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   CodeBracketIcon,
-  TableCellsIcon
+  TableCellsIcon,
+  BeakerIcon,
+  CreditCardIcon,
+  ShieldCheckIcon,
+  ServerIcon,
+  TagIcon,
+  ClipboardDocumentIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
-import { ParseResult, ParsedRequirement } from '../types/config';
+
+interface NLPParseResult {
+  timestamp: string;
+  input_text: string;
+  input_length: number;
+  word_count: number;
+  services_detected: string[];
+  fields_detected: string[];
+  mandatory_services: string[];
+  optional_services: string[];
+  confidence_score: number;
+  processing_details: {
+    service_matches: { [service: string]: string[] };
+    field_matches: { [field: string]: string[] };
+    total_service_keywords_found: number;
+    total_field_keywords_found: number;
+  };
+  metadata: {
+    parser_version: string;
+    processing_method: string;
+    language: string;
+  };
+}
 
 const RequirementParser: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [documentText, setDocumentText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
-  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [parseResult, setParseResult] = useState<NLPParseResult | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState('');
 
-  // Simulated AI parsing engine
-  const parseDocument = useCallback(async (text: string, fileName: string): Promise<ParseResult> => {
-    const startTime = Date.now();
-    
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const lines = text.split('\n');
-    const requirements: ParsedRequirement[] = [];
-    const errors: string[] = [];
-    
-    // Service detection patterns
-    const servicePatterns = [
-      { name: 'KYC Provider', keywords: ['kyc', 'know your customer', 'identity', 'verification', 'customer'], category: 'identity' },
-      { name: 'GST API', keywords: ['gst', 'goods and services tax', 'gstin', 'tax'], category: 'taxation' },
-      { name: 'Payment Gateway', keywords: ['payment', 'transaction', 'gateway', 'upi', 'neft', 'rtgs'], category: 'payment' },
-      { name: 'Fraud Detection', keywords: ['fraud', 'detection', 'risk', 'security', 'aml'], category: 'security' },
-      { name: 'Credit Bureau', keywords: ['bureau', 'credit', 'score', 'cibil', 'experian'], category: 'credit' }
-    ];
+  // Service icons and colors
+  const getServiceInfo = (service: string) => {
+    switch (service.toLowerCase()) {
+      case 'kyc':
+        return { icon: BeakerIcon, color: 'bg-blue-100 text-blue-800 border-blue-200', name: 'KYC Verification' };
+      case 'gst':
+        return { icon: ServerIcon, color: 'bg-green-100 text-green-800 border-green-200', name: 'GST Services' };
+      case 'payments':
+        return { icon: CreditCardIcon, color: 'bg-purple-100 text-purple-800 border-purple-200', name: 'Payment Processing' };
+      case 'fraud':
+        return { icon: ShieldCheckIcon, color: 'bg-red-100 text-red-800 border-red-200', name: 'Fraud Detection' };
+      default:
+        return { icon: CogIcon, color: 'bg-gray-100 text-gray-800 border-gray-200', name: service };
+    }
+  };
 
-    // Field detection patterns
-    const fieldPatterns = [
-      { name: 'fullName', type: 'string', keywords: ['full name', 'name', 'customer name'], required: true },
-      { name: 'dateOfBirth', type: 'date', keywords: ['date of birth', 'dob', 'birth date'], required: true },
-      { name: 'panNumber', type: 'string', keywords: ['pan', 'pan number', 'permanent account'], required: true },
-      { name: 'email', type: 'string', keywords: ['email', 'email address', 'mail'], required: true },
-      { name: 'phoneNumber', type: 'string', keywords: ['phone', 'mobile', 'contact number'], required: true },
-      { name: 'address', type: 'string', keywords: ['address', 'location', 'residence'], required: false },
-      { name: 'amount', type: 'number', keywords: ['amount', 'transaction amount', 'value'], required: false },
-      { name: 'accountNumber', type: 'string', keywords: ['account', 'account number'], required: false },
-      { name: 'ifscCode', type: 'string', keywords: ['ifsc', 'bank code'], required: false }
-    ];
+  // Field type colors
+  const getFieldTypeColor = (field: string) => {
+    const fieldTypes: { [key: string]: string } = {
+      'name': 'bg-blue-50 text-blue-700',
+      'dob': 'bg-green-50 text-green-700',
+      'PAN': 'bg-purple-50 text-purple-700',
+      'GSTIN': 'bg-orange-50 text-orange-700',
+      'phone': 'bg-pink-50 text-pink-700',
+      'email': 'bg-indigo-50 text-indigo-700',
+      'address': 'bg-gray-50 text-gray-700',
+      'aadhaar': 'bg-yellow-50 text-yellow-700',
+      'bankAccount': 'bg-teal-50 text-teal-700',
+      'amount': 'bg-red-50 text-red-700'
+    };
+    return fieldTypes[field] || 'bg-gray-50 text-gray-700';
+  };
 
-    // Endpoint detection patterns
-    const endpointPatterns = [
-      { name: 'kycVerify', method: 'POST', keywords: ['verify', 'validate', 'check'], category: 'identity' },
-      { name: 'gstValidate', method: 'POST', keywords: ['validate', 'verify', 'check'], category: 'taxation' },
-      { name: 'paymentProcess', method: 'POST', keywords: ['process', 'execute', 'initiate'], category: 'payment' },
-      { name: 'fraudDetect', method: 'POST', keywords: ['detect', 'analyze', 'assess'], category: 'security' }
-    ];
-
-    // Parse services
-    lines.forEach((line, index) => {
-      const lowerLine = line.toLowerCase();
-      
-      // Detect services
-      servicePatterns.forEach(service => {
-        const matches = service.keywords.filter(keyword => lowerLine.includes(keyword));
-        if (matches.length > 0) {
-          const existingService = requirements.find(r => r.name === service.name && r.type === 'service');
-          if (!existingService) {
-            requirements.push({
-              id: `service_${requirements.length}`,
-              type: 'service',
-              category: service.category,
-              name: service.name,
-              description: `${service.name} integration required`,
-              required: service.name === 'KYC Provider' || service.name === 'GST API',
-              dataType: 'object',
-              confidence: Math.min(0.95, 0.7 + (matches.length * 0.1)),
-              examples: [line.trim()],
-              source: {
-                lineNumber: index + 1,
-                context: line.trim(),
-                section: 'requirements'
-              }
-            });
-          }
-        }
+  // NLP-based parsing
+  const parseDocument = useCallback(async (text: string): Promise<NLPParseResult> => {
+    try {
+      const response = await fetch('http://localhost:5003/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
       });
 
-      // Detect fields
-      fieldPatterns.forEach(field => {
-        const matches = field.keywords.filter(keyword => lowerLine.includes(keyword));
-        if (matches.length > 0) {
-          const existingField = requirements.find(r => r.name === field.name && r.type === 'field');
-          if (!existingField) {
-            requirements.push({
-              id: `field_${requirements.length}`,
-              type: 'field',
-              category: 'data',
-              name: field.name,
-              description: `${field.name} field for processing`,
-              required: field.required,
-              dataType: field.type as 'string' | 'number' | 'boolean' | 'object' | 'date',
-              confidence: Math.min(0.9, 0.6 + (matches.length * 0.15)),
-              validation: field.type === 'string' ? { minLength: 1, maxLength: 255 } : undefined,
-              examples: [line.trim()],
-              source: {
-                lineNumber: index + 1,
-                context: line.trim(),
-                section: 'data'
-              }
-            });
-          }
-        }
-      });
+      if (!response.ok) {
+        throw new Error('Parsing service unavailable');
+      }
 
-      // Detect endpoints
-      endpointPatterns.forEach(endpoint => {
-        const matches = endpoint.keywords.filter(keyword => lowerLine.includes(keyword));
-        if (matches.length > 0) {
-          const existingEndpoint = requirements.find(r => r.name === endpoint.name && r.type === 'endpoint');
-          if (!existingEndpoint) {
-            requirements.push({
-              id: `endpoint_${requirements.length}`,
-              type: 'endpoint',
-              category: endpoint.category,
-              name: endpoint.name,
-              description: `${endpoint.name} API endpoint`,
-              required: true,
-              dataType: 'object',
-              confidence: Math.min(0.85, 0.5 + (matches.length * 0.2)),
-              examples: [line.trim()],
-              source: {
-                lineNumber: index + 1,
-                context: line.trim(),
-                section: 'api'
-              }
-            });
-          }
-        }
-      });
-    });
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      // Fallback to mock parsing if service is unavailable
+      return mockParseDocument(text);
+    }
+  }, []);
 
-    // Categorize requirements
-    const services = requirements.filter(r => r.type === 'service');
-    const endpoints = requirements.filter(r => r.type === 'endpoint');
-    const fields = requirements.filter(r => r.type === 'field');
-
-    // Determine document type
-    const lowerText = text.toLowerCase();
-    const docType = lowerText.includes('business requirement') ? 'BRD' : 
-                   lowerText.includes('statement of work') ? 'SOW' : 'API_SPEC';
-
-    const processingTime = Date.now() - startTime;
+  // Mock parsing as fallback
+  const mockParseDocument = (text: string): NLPParseResult => {
+    const normalizedText = text.toLowerCase();
+    
+    // Simple keyword detection
+    const services = [];
+    const fields = [];
+    
+    if (normalizedText.includes('kyc') || normalizedText.includes('identity')) services.push('KYC');
+    if (normalizedText.includes('gst') || normalizedText.includes('tax')) services.push('GST');
+    if (normalizedText.includes('payment') || normalizedText.includes('transaction')) services.push('Payments');
+    if (normalizedText.includes('fraud') || normalizedText.includes('risk')) services.push('Fraud');
+    
+    if (normalizedText.includes('name')) fields.push('name');
+    if (normalizedText.includes('dob') || normalizedText.includes('birth')) fields.push('dob');
+    if (normalizedText.includes('pan')) fields.push('PAN');
+    if (normalizedText.includes('gstin')) fields.push('GSTIN');
+    if (normalizedText.includes('phone') || normalizedText.includes('mobile')) fields.push('phone');
+    if (normalizedText.includes('email')) fields.push('email');
 
     return {
-      success: true,
-      document: {
-        name: fileName,
-        type: docType,
-        size: text.length,
-        pages: Math.ceil(lines.length / 50)
+      timestamp: new Date().toISOString(),
+      input_text: text,
+      input_length: text.length,
+      word_count: text.split(/\s+/).length,
+      services_detected: services,
+      fields_detected: fields,
+      mandatory_services: services,
+      optional_services: [],
+      confidence_score: 75,
+      processing_details: {
+        service_matches: {},
+        field_matches: {},
+        total_service_keywords_found: services.length,
+        total_field_keywords_found: fields.length
       },
-      parsedAt: new Date().toISOString(),
-      processingTime,
-      services,
-      endpoints,
-      fields,
-      summary: {
-        totalServices: services.length,
-        mandatoryServices: services.filter(s => s.required).length,
-        totalEndpoints: endpoints.length,
-        totalFields: fields.length,
-        confidence: requirements.reduce((acc, r) => acc + r.confidence, 0) / requirements.length
-      },
-      errors: errors.length > 0 ? errors : undefined
+      metadata: {
+        parser_version: '1.0.0',
+        processing_method: 'keyword_matching_rule_based',
+        language: 'en'
+      }
     };
-  }, []);
+  };
 
-  const handleFileUpload = useCallback(async (uploadedFile: File) => {
-    if (uploadedFile) {
-      setFile(uploadedFile);
-      
+  const handleParse = async () => {
+    if (!documentText.trim()) {
+      setError('Please enter or paste your document text');
+      return;
+    }
+
+    setIsParsing(true);
+    setError('');
+
+    try {
+      const result = await parseDocument(documentText);
+      setParseResult(result);
+    } catch (err: any) {
+      setError(err.message || 'Failed to parse document');
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleFileUpload = async (uploadedFile: File) => {
+    setFile(uploadedFile);
+    
+    try {
       const text = await uploadedFile.text();
       setDocumentText(text);
-      
-      setIsParsing(true);
-      try {
-        const result = await parseDocument(text, uploadedFile.name);
-        setParseResult(result);
-      } catch (error) {
-        console.error('Parsing error:', error);
-        setParseResult({
-          success: false,
-          document: {
-            name: uploadedFile.name,
-            type: 'BRD',
-            size: text.length
-          },
-          parsedAt: new Date().toISOString(),
-          processingTime: 0,
-          services: [],
-          endpoints: [],
-          fields: [],
-          summary: {
-            totalServices: 0,
-            mandatoryServices: 0,
-            totalEndpoints: 0,
-            totalFields: 0,
-            confidence: 0
-          },
-          errors: ['Failed to parse document']
-        });
-      } finally {
-        setIsParsing(false);
-      }
+    } catch (error) {
+      setError('Failed to read file content');
     }
-  }, [parseDocument]);
+  };
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
+  const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
+    if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
-    } else if (e.type === "dragleave") {
+    } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
-  }, []);
+  };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileUpload(e.dataTransfer.files[0]);
     }
-  }, [handleFileUpload]);
-
-  const handleTextSubmit = useCallback(async () => {
-    if (documentText.trim()) {
-      setIsParsing(true);
-      try {
-        const result = await parseDocument(documentText, 'text-input.txt');
-        setParseResult(result);
-      } catch (error) {
-        console.error('Parsing error:', error);
-      } finally {
-        setIsParsing(false);
-      }
-    }
-  }, [documentText, parseDocument]);
-
-  const clearResults = useCallback(() => {
-    setParseResult(null);
-    setFile(null);
-    setDocumentText('');
-  }, []);
-
-  const renderJSON = (obj: any, indent = 0) => {
-    const json = JSON.stringify(obj, null, 2);
-    return (
-      <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto text-sm">
-        <code>{json}</code>
-      </pre>
-    );
   };
 
+  const sampleText = `The system must integrate KYC and GST verification APIs. 
+The KYC integration should support customer identity verification with name, date of birth, 
+PAN number, email, and phone number validation. The GST integration must validate GSTIN 
+and business registration details. Payment processing is required for transaction handling. 
+All integrations should be secure and compliant with regulatory requirements.`;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="max-w-7xl mx-auto px-4 py-8"
-    >
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Requirement Parsing Engine</h1>
-        <p className="text-gray-600">Upload BRD/SOW documents to extract API endpoints, fields, and service requirements</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">NLP Requirement Parser</h1>
+          <p className="text-gray-600">AI-powered requirement extraction with keyword matching and rule-based analysis</p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Upload Section */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-lg shadow-lg border border-gray-200 p-6"
-        >
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <DocumentArrowUpIcon className="w-6 h-6 mr-2 text-primary-600" />
-            Document Upload
-          </h2>
-
-          {/* File Upload Area */}
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-300 hover:border-primary-400'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Input Section */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-6"
           >
-            <DocumentTextIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-lg font-medium text-gray-900 mb-2">
-              Drop your document here
-            </p>
-            <p className="text-sm text-gray-600 mb-4">
-              Supports PDF, TXT, DOC files
-            </p>
-            <label className="inline-block">
-              <span className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 cursor-pointer transition-colors">
-                Choose File
-              </span>
-              <input
-                type="file"
-                className="hidden"
-                accept=".txt,.pdf,.doc,.docx"
-                onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-              />
-            </label>
-          </div>
+            {/* File Upload */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <DocumentArrowUpIcon className="w-5 h-5 mr-2 text-blue-600" />
+                Document Upload
+              </h2>
 
-          {file && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
-              <div className="flex items-center">
-                <CheckCircleIcon className="w-5 h-5 text-green-600 mr-2" />
-                <span className="text-sm font-medium text-green-800">
-                  {file.name} ({(file.size / 1024).toFixed(1)} KB)
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <DocumentTextIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 mb-2">
+                  {file ? file.name : 'Drag and drop your document here, or click to browse'}
+                </p>
+                <input
+                  type="file"
+                  accept=".txt,.md,.doc,.docx"
+                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
+                >
+                  Browse Files
+                </label>
+              </div>
+            </div>
+
+            {/* Text Input */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <ClipboardDocumentIcon className="w-5 h-5 mr-2 text-blue-600" />
+                Requirement Text
+              </h2>
+
+              <textarea
+                value={documentText}
+                onChange={(e) => setDocumentText(e.target.value)}
+                placeholder="Paste your requirement text here..."
+                className="w-full h-48 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+
+              <div className="mt-4 flex items-center justify-between">
+                <button
+                  onClick={() => setDocumentText(sampleText)}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Load Sample Text
+                </button>
+                <span className="text-sm text-gray-500">
+                  {documentText.length} characters
                 </span>
               </div>
-            </div>
-          )}
 
-          {/* Text Input Area */}
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Or paste document text:
-            </label>
-            <textarea
-              value={documentText}
-              onChange={(e) => setDocumentText(e.target.value)}
-              placeholder="Paste your BRD/SOW text here..."
-              className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-            <button
-              onClick={handleTextSubmit}
-              disabled={!documentText.trim() || isParsing}
-              className="mt-2 w-full px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isParsing ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Parsing...
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-red-800 text-sm">{error}</p>
                 </div>
-              ) : (
-                'Parse Document'
               )}
-            </button>
-          </div>
 
-          {parseResult && (
-            <button
-              onClick={clearResults}
-              className="mt-4 w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              Clear Results
-            </button>
-          )}
-        </motion.div>
-
-        {/* Results Section */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="bg-white rounded-lg shadow-lg border border-gray-200 p-6"
-        >
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <CodeBracketIcon className="w-6 h-6 mr-2 text-primary-600" />
-            Parsing Results
-          </h2>
-
-          {isParsing ? (
-            <div className="text-center py-12">
-              <div className="inline-block w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-4 text-gray-600">Parsing document with AI...</p>
+              <button
+                onClick={handleParse}
+                disabled={isParsing || !documentText.trim()}
+                className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isParsing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Parsing...
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="w-4 h-4 mr-2" />
+                    Parse Requirements
+                  </>
+                )}
+              </button>
             </div>
-          ) : parseResult ? (
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <div className="flex items-center mb-2">
-                    <TableCellsIcon className="w-5 h-5 text-blue-600 mr-2" />
-                    <h3 className="font-medium text-blue-900">Summary</h3>
+          </motion.div>
+
+          {/* Results Section */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-6"
+          >
+            {parseResult ? (
+              <>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600">Services Detected</p>
+                        <p className="text-2xl font-bold text-gray-900">{parseResult.services_detected.length}</p>
+                      </div>
+                      <TagIcon className="w-8 h-8 text-blue-600" />
+                    </div>
                   </div>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Services:</span>
-                      <span className="font-medium text-blue-900">{parseResult.summary.totalServices}</span>
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600">Fields Detected</p>
+                        <p className="text-2xl font-bold text-gray-900">{parseResult.fields_detected.length}</p>
+                      </div>
+                      <CogIcon className="w-8 h-8 text-green-600" />
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Mandatory:</span>
-                      <span className="font-medium text-blue-900">{parseResult.summary.mandatoryServices}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Endpoints:</span>
-                      <span className="font-medium text-blue-900">{parseResult.summary.totalEndpoints}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Fields:</span>
-                      <span className="font-medium text-blue-900">{parseResult.summary.totalFields}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-blue-700">Confidence:</span>
-                      <span className="font-medium text-blue-900">
-                        {(parseResult.summary.confidence * 100).toFixed(1)}%
+                  </div>
+                </div>
+
+                {/* Services */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Detected Services</h3>
+                  
+                  <div className="space-y-4">
+                    {/* Mandatory Services */}
+                    {parseResult.mandatory_services.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Mandatory Services</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {parseResult.mandatory_services.map((service) => {
+                            const serviceInfo = getServiceInfo(service);
+                            const Icon = serviceInfo.icon;
+                            return (
+                              <div
+                                key={service}
+                                className={`px-3 py-2 rounded-full border flex items-center space-x-2 ${serviceInfo.color}`}
+                              >
+                                <Icon className="w-4 h-4" />
+                                <span className="text-sm font-medium">{serviceInfo.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Services */}
+                    {parseResult.optional_services.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Optional Services</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {parseResult.optional_services.map((service) => {
+                            const serviceInfo = getServiceInfo(service);
+                            const Icon = serviceInfo.icon;
+                            return (
+                              <div
+                                key={service}
+                                className={`px-3 py-2 rounded-full border flex items-center space-x-2 opacity-70 ${serviceInfo.color}`}
+                              >
+                                <Icon className="w-4 h-4" />
+                                <span className="text-sm font-medium">{serviceInfo.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fields */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Detected Fields</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {parseResult.fields_detected.map((field) => (
+                      <span
+                        key={field}
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${getFieldTypeColor(field)}`}
+                      >
+                        {field}
                       </span>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <div className="flex items-center mb-2">
-                    <DocumentTextIcon className="w-5 h-5 text-green-600 mr-2" />
-                    <h3 className="font-medium text-green-900">Document Info</h3>
+                {/* JSON Output */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Parsed Output (JSON)</h3>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(JSON.stringify(parseResult, null, 2))}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                    >
+                      <CodeBracketIcon className="w-4 h-4 mr-1" />
+                      Copy JSON
+                    </button>
                   </div>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Type:</span>
-                      <span className="font-medium text-green-900">{parseResult.document.type}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Size:</span>
-                      <span className="font-medium text-green-900">{parseResult.document.size} chars</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Pages:</span>
-                      <span className="font-medium text-green-900">{parseResult.document.pages || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-green-700">Processing:</span>
-                      <span className="font-medium text-green-900">{parseResult.processingTime}ms</span>
-                    </div>
+                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-green-400 text-sm">
+                      {JSON.stringify(parseResult, null, 2)}
+                    </pre>
                   </div>
                 </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                <TableCellsIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Results Yet</h3>
+                <p className="text-gray-600">Upload a document or paste text to see parsing results</p>
               </div>
-
-              {/* JSON Output */}
-              <div>
-                <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-                  <CodeBracketIcon className="w-5 h-5 text-primary-600 mr-2" />
-                  Structured Output (JSON)
-                </h3>
-                {renderJSON(parseResult)}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-12 text-gray-500">
-              <DocumentTextIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-              <p>Upload a document or paste text to see parsing results</p>
-            </div>
-          )}
-        </motion.div>
+            )}
+          </motion.div>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

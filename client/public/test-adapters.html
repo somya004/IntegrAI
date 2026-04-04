@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adapter Registry Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .endpoint {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .response {
+            background: #e8f5e8;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Adapter Registry API Test</h1>
+    
+    <div class="endpoint">
+        <h3>GET /adapters</h3>
+        <button onclick="testGetAllAdapters()">Test All Adapters</button>
+        <div id="all-adapters-response" class="response"></div>
+    </div>
+
+    <div class="endpoint">
+        <h3>GET /adapters/kyc</h3>
+        <button onclick="testKYCAdapters()">Test KYC Adapters</button>
+        <div id="kyc-adapters-response" class="response"></div>
+    </div>
+
+    <div class="endpoint">
+        <h3>GET /adapters/kyc/karza</h3>
+        <button onclick="testKarzaAdapters()">Test Karza KYC Adapters</button>
+        <div id="karza-adapters-response" class="response"></div>
+    </div>
+
+    <div class="endpoint">
+        <h3>POST /adapters (Add New)</h3>
+        <button onclick="testAddAdapter()">Add Test Adapter</button>
+        <div id="add-adapter-response" class="response"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5002';
+
+        async function testGetAllAdapters() {
+            try {
+                const response = await fetch(`${API_BASE}/adapters`);
+                const data = await response.json();
+                document.getElementById('all-adapters-response').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('all-adapters-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testKYCAdapters() {
+            try {
+                const response = await fetch(`${API_BASE}/adapters/kyc`);
+                const data = await response.json();
+                document.getElementById('kyc-adapters-response').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('kyc-adapters-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testKarzaAdapters() {
+            try {
+                const response = await fetch(`${API_BASE}/adapters/kyc/karza`);
+                const data = await response.json();
+                document.getElementById('karza-adapters-response').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('karza-adapters-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testAddAdapter() {
+            try {
+                const newAdapter = {
+                    service: 'Payments',
+                    provider: 'Stripe',
+                    version: 'v1',
+                    endpoints: {
+                        create: 'https://api.stripe.com/v1/charges',
+                        retrieve: 'https://api.stripe.com/v1/charges/:id'
+                    },
+                    requiredFields: ['amount', 'currency', 'source'],
+                    authentication: {
+                        type: 'Bearer Token',
+                        header: 'Authorization'
+                    },
+                    rateLimit: {
+                        requests: 100,
+                        period: 'minute'
+                    },
+                    description: 'Stripe payment processing adapter'
+                };
+
+                const response = await fetch(`${API_BASE}/adapters`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newAdapter)
+                });
+                const data = await response.json();
+                document.getElementById('add-adapter-response').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('add-adapter-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

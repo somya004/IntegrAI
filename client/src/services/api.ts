@@ -42,24 +42,61 @@ api.interceptors.response.use(
 
 // API Functions
 export const apiService = {
-  // Document Parsing
+  // Document Parsing with NLP
   async parseDocument(text: string): Promise<ParsedDocument> {
     try {
-      const response = await api.post('/api/parse/document', { text });
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Document parsing error:', error);
-      // Return a mock response if backend is not available
-      return {
-        services: [],
-        requirements: [],
-        summary: {
-          mandatoryServices: 0,
-          totalRequirements: 0
+      // Try NLP parser first
+      const nlpResponse = await fetch('http://localhost:5003/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        totalDetected: 0
-      };
+        body: JSON.stringify({ text }),
+      });
+
+      if (nlpResponse.ok) {
+        const nlpData = await nlpResponse.json();
+        if (nlpData.success) {
+          // Convert NLP result to ParsedDocument format
+          return {
+            services: nlpData.data.services_detected.map((service: string) => ({
+              id: service.toLowerCase(),
+              name: service,
+              category: service.toLowerCase(),
+              description: `${service} integration service`,
+              endpoints: [],
+              requiredFields: nlpData.data.fields_detected,
+              optional: !nlpData.data.mandatory_services.includes(service)
+            })),
+            requirements: nlpData.data.fields_detected.map((field: string) => ({
+              id: field.toLowerCase(),
+              name: field,
+              type: 'string' as any,
+              required: true,
+              description: `Extracted field: ${field}`
+            })),
+            summary: {
+              mandatoryServices: nlpData.data.mandatory_services.length,
+              totalRequirements: nlpData.data.fields_detected.length
+            },
+            totalDetected: nlpData.data.services_detected.length
+          };
+        }
+      }
+    } catch (error) {
+      console.error('NLP parsing error, falling back to mock:', error);
     }
+
+    // Fallback to mock response
+    return {
+      services: [],
+      requirements: [],
+      summary: {
+        mandatoryServices: 0,
+        totalRequirements: 0
+      },
+      totalDetected: 0
+    };
   },
 
   async getSupportedServices(): Promise<any[]> {

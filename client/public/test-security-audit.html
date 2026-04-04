@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security & Audit Service Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .response {
+            background: #e8f5e8;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #ffe8e8;
+            color: #d00;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input, select, textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin: 5px;
+            width: 200px;
+        }
+        .credential-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .log-entry {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #ddd;
+        }
+        .log-entry.high {
+            border-left-color: #dc3545;
+        }
+        .log-entry.medium {
+            border-left-color: #ffc107;
+        }
+        .log-entry.low {
+            border-left-color: #28a745;
+        }
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .severity-high {
+            background: #dc3545;
+            color: white;
+        }
+        .severity-medium {
+            background: #ffc107;
+            color: #212529;
+        }
+        .severity-low {
+            background: #28a745;
+            color: white;
+        }
+        .category-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-right: 8px;
+        }
+        .category-security {
+            background: #dc3545;
+            color: white;
+        }
+        .category-configuration {
+            background: #007bff;
+            color: white;
+        }
+        .category-simulation {
+            background: #6f42c1;
+            color: white;
+        }
+        .category-tenant_management {
+            background: #28a745;
+            color: white;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Security & Audit Service Test</h1>
+    
+    <div class="test-section">
+        <h3>Credential Vault</h3>
+        
+        <div class="form-group">
+            <label for="credentialName">Credential Name:</label>
+            <input type="text" id="credentialName" placeholder="e.g., Test API Key">
+        </div>
+        
+        <div class="form-group">
+            <label for="credentialService">Service:</label>
+            <select id="credentialService">
+                <option value="KYC">KYC</option>
+                <option value="Payments">Payments</option>
+                <option value="GST">GST</option>
+                <option value="Fraud">Fraud</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="credentialProvider">Provider:</label>
+            <input type="text" id="credentialProvider" placeholder="e.g., TestProvider">
+        </div>
+        
+        <div class="form-group">
+            <label for="credentialType">Type:</label>
+            <select id="credentialType">
+                <option value="api_key">API Key</option>
+                <option value="secret">Secret</option>
+                <option value="token">Token</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="credentialValue">Value:</label>
+            <input type="password" id="credentialValue" placeholder="Enter secret value">
+        </div>
+        
+        <button onclick="addCredential()">Add Credential</button>
+        <button onclick="loadCredentials()">Load Credentials</button>
+        
+        <div id="credentialsList"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Audit Logging</h3>
+        
+        <div class="form-group">
+            <label for="auditAction">Action:</label>
+            <select id="auditAction">
+                <option value="CONFIG_CREATED">Config Created</option>
+                <option value="CONFIG_UPDATED">Config Updated</option>
+                <option value="CREDENTIAL_CREATED">Credential Created</option>
+                <option value="CREDENTIAL_UPDATED">Credential Updated</option>
+                <option value="SIMULATION_RUN">Simulation Run</option>
+                <option value="TENANT_CREATED">Tenant Created</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="auditDetails">Details (JSON):</label>
+            <textarea id="auditDetails" rows="3" placeholder='{"key": "value"}'></textarea>
+        </div>
+        
+        <button onclick="createAuditLog()">Create Audit Log</button>
+        <button onclick="loadAuditLogs()">Load Audit Logs</button>
+        <button onclick="loadAuditStats()">Load Statistics</button>
+        
+        <div id="auditLogsList"></div>
+        <div id="auditStats"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Security Operations</h3>
+        <button onclick="testEncryption()">Test Encryption</button>
+        <button onclick="testDecryption()">Test Decryption</button>
+        <button onclick="testHealth()">Health Check</button>
+        <div id="securityResponse" class="response"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5007';
+
+        // Credential Management
+        async function addCredential() {
+            const credential = {
+                id: 'cred_' + Date.now(),
+                name: document.getElementById('credentialName').value,
+                service: document.getElementById('credentialService').value,
+                provider: document.getElementById('credentialProvider').value,
+                type: document.getElementById('credentialType').value,
+                value: document.getElementById('credentialValue').value,
+                tenant_id: 'demo_tenant'
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/credentials`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(credential),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showResponse('Credential added successfully!', 'success');
+                    clearCredentialForm();
+                    loadCredentials();
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function loadCredentials() {
+            try {
+                const response = await fetch(`${API_BASE}/credentials`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayCredentials(data.data);
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayCredentials(credentials) {
+            const container = document.getElementById('credentialsList');
+            container.innerHTML = '<h4>Stored Credentials:</h4>';
+            
+            credentials.forEach(cred => {
+                const card = document.createElement('div');
+                card.className = 'credential-card';
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${cred.name}</strong>
+                            <br>
+                            <small>${cred.service} - ${cred.provider} (${cred.type})</small>
+                        </div>
+                        <div>
+                            <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">
+                                ${cred.masked_value}
+                            </code>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
+                        Created: ${new Date(cred.created_at).toLocaleString()} | 
+                        Tenant: ${cred.tenant_id}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function clearCredentialForm() {
+            document.getElementById('credentialName').value = '';
+            document.getElementById('credentialProvider').value = '';
+            document.getElementById('credentialValue').value = '';
+        }
+
+        // Audit Logging
+        async function createAuditLog() {
+            const action = document.getElementById('auditAction').value;
+            const detailsText = document.getElementById('auditDetails').value;
+            
+            let details;
+            try {
+                details = detailsText ? JSON.parse(detailsText) : {};
+            } catch (error) {
+                details = { message: detailsText };
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/audit-logs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action,
+                        details,
+                        tenant_id: 'demo_tenant',
+                        user_id: 'demo_user'
+                    }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showResponse('Audit log created successfully!', 'success');
+                    document.getElementById('auditDetails').value = '';
+                    loadAuditLogs();
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function loadAuditLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/audit-logs?limit=20`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAuditLogs(data.data);
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayAuditLogs(logs) {
+            const container = document.getElementById('auditLogsList');
+            container.innerHTML = '<h4>Recent Audit Logs:</h4>';
+            
+            logs.forEach(log => {
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${log.severity.toLowerCase()}`;
+                entry.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="severity-badge severity-${log.severity.toLowerCase()}">${log.severity}</span>
+                            <span class="category-badge category-${log.category.toLowerCase()}">${log.category}</span>
+                            <strong>${log.action}</strong>
+                        </div>
+                        <small>${new Date(log.timestamp).toLocaleString()}</small>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #666;">
+                        Tenant: ${log.tenant_id || 'N/A'} | User: ${log.user_id || 'N/A'} | IP: ${log.ip_address}
+                    </div>
+                    ${log.details && Object.keys(log.details).length > 0 ? `
+                        <details style="margin-top: 8px;">
+                            <summary style="cursor: pointer; font-size: 12px;">Details</summary>
+                            <pre style="background: #f8f9fa; padding: 8px; border-radius: 3px; margin-top: 4px; font-size: 11px; overflow-x: auto;">
+                                ${JSON.stringify(log.details, null, 2)}
+                            </pre>
+                        </details>
+                    ` : ''}
+                `;
+                container.appendChild(entry);
+            });
+        }
+
+        async function loadAuditStats() {
+            try {
+                const response = await fetch(`${API_BASE}/audit-stats`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAuditStats(data.data);
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayAuditStats(stats) {
+            const container = document.getElementById('auditStats');
+            container.innerHTML = `
+                <h4>Audit Statistics (Last ${stats.timeframe}):</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #007bff;">${stats.total_logs}</div>
+                        <div style="color: #666;">Total Logs</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${stats.severity_breakdown.HIGH}</div>
+                        <div style="color: #666;">High Severity</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${stats.severity_breakdown.MEDIUM}</div>
+                        <div style="color: #666;">Medium Severity</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 5px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${stats.severity_breakdown.LOW}</div>
+                        <div style="color: #666;">Low Severity</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h5>Category Breakdown:</h5>
+                    ${Object.entries(stats.category_breakdown).map(([category, count]) => 
+                        `<span class="category-badge category-${category.toLowerCase()}">${category}: ${count}</span>`
+                    ).join(' ')}
+                </div>
+            `;
+        }
+
+        // Security Operations
+        async function testEncryption() {
+            const text = prompt('Enter text to encrypt:');
+            if (!text) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/security/encrypt`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showResponse('Encrypted successfully!\n\n' + JSON.stringify(data.data, null, 2), 'success');
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testDecryption() {
+            const encryptedText = prompt('Enter encrypted data (JSON):');
+            if (!encryptedText) return;
+
+            try {
+                const encryptedData = JSON.parse(encryptedText);
+                const response = await fetch(`${API_BASE}/security/decrypt`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ encrypted_data: encryptedData }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showResponse('Decrypted successfully!\n\n' + JSON.stringify(data.data, null, 2), 'success');
+                } else {
+                    showResponse('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                showResponse(JSON.stringify(data, null, 2), 'success');
+            } catch (error) {
+                showResponse('Error: ' + error.message, 'error');
+            }
+        }
+
+        function showResponse(message, type) {
+            const container = document.getElementById('securityResponse');
+            container.className = type === 'error' ? 'error' : 'response';
+            container.textContent = message;
+        }
+
+        // Initialize
+        window.onload = function() {
+            loadCredentials();
+            loadAuditLogs();
+            loadAuditStats();
+        };
+    </script>
+</body>
+</html>

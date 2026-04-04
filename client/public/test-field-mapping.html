@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Mapping Engine Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .response {
+            background: #e8f5e8;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .mapping-item {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .confidence-high { border-left-color: #28a745; }
+        .confidence-medium { border-left-color: #ffc107; }
+        .confidence-low { border-left-color: #dc3545; }
+        .field-name {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .threshold-control {
+            margin: 10px 0;
+        }
+        .threshold-control input {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Field Mapping Engine Test</h1>
+    
+    <div class="test-section">
+        <h3>Custom Field Mapping Test</h3>
+        <div class="threshold-control">
+            <label for="threshold">Confidence Threshold: <span id="thresholdValue">0.3</span></label>
+            <input type="range" id="threshold" min="0" max="1" step="0.05" value="0.3" 
+                   oninput="document.getElementById('thresholdValue').textContent = this.value">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h4>Source Fields</h4>
+                <textarea id="sourceFields" placeholder="Enter source fields (one per line)">customer_name
+dob
+pan_number
+email_address
+phone_number
+permanent_address
+annual_income
+company_name
+job_title</textarea>
+            </div>
+            <div>
+                <h4>Target Fields</h4>
+                <textarea id="targetFields" placeholder="Enter target fields (one per line)">fullName
+date_of_birth
+pan
+email
+mobile
+address
+income
+organization
+position</textarea>
+            </div>
+        </div>
+        
+        <button onclick="testCustomMapping()">Generate Mappings</button>
+        <button onclick="loadSampleData()">Load Sample Data</button>
+        <div id="custom-response" class="response"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Similarity Test</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end;">
+            <input type="text" id="field1" placeholder="Field 1" value="customer_name">
+            <input type="text" id="field2" placeholder="Field 2" value="fullName">
+            <button onclick="testSimilarity()">Test Similarity</button>
+        </div>
+        <div id="similarity-response" class="response"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Pre-defined Test Cases</h3>
+        <button onclick="testCase1()">Test Case 1: Standard Fields</button>
+        <button onclick="testCase2()">Test Case 2: Complex Fields</button>
+        <button onclick="testCase3()">Test Case 3: Edge Cases</button>
+        <div id="test-response" class="response"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5004';
+
+        function loadSampleData() {
+            const sourceFields = `customer_name
+dob
+pan_number
+email_address
+phone_number
+permanent_address
+annual_income
+company_name
+job_title`;
+            
+            const targetFields = `fullName
+date_of_birth
+pan
+email
+mobile
+address
+income
+organization
+position`;
+            
+            document.getElementById('sourceFields').value = sourceFields;
+            document.getElementById('targetFields').value = targetFields;
+        }
+
+        async function testCustomMapping() {
+            const sourceFields = document.getElementById('sourceFields').value
+                .split('\n')
+                .map(f => f.trim())
+                .filter(f => f.length > 0);
+            
+            const targetFields = document.getElementById('targetFields').value
+                .split('\n')
+                .map(f => f.trim())
+                .filter(f => f.length > 0);
+            
+            const threshold = parseFloat(document.getElementById('threshold').value);
+            
+            if (sourceFields.length === 0 || targetFields.length === 0) {
+                alert('Please enter both source and target fields');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/suggest-mappings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sourceFields,
+                        targetFields,
+                        threshold
+                    })
+                });
+                
+                const data = await response.json();
+                displayMappingResult(data.data, 'custom-response');
+            } catch (error) {
+                document.getElementById('custom-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testSimilarity() {
+            const field1 = document.getElementById('field1').value;
+            const field2 = document.getElementById('field2').value;
+            
+            if (!field1 || !field2) {
+                alert('Please enter both field names');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/test-similarity`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ field1, field2 })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = data.data;
+                    const html = `
+                        <h4>Similarity Analysis</h4>
+                        <p><strong>Field 1:</strong> ${result.field1}</p>
+                        <p><strong>Field 2:</strong> ${result.field2}</p>
+                        <p><strong>Confidence:</strong> ${(result.confidence * 100).toFixed(1)}%</p>
+                        <p><strong>Mapping Type:</strong> ${result.mappingType}</p>
+                        <p><strong>Transformation:</strong> ${result.transformation || 'None'}</p>
+                    `;
+                    document.getElementById('similarity-response').innerHTML = html;
+                } else {
+                    document.getElementById('similarity-response').textContent = 
+                        `Error: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById('similarity-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testCase1() {
+            const sourceFields = ['name', 'email', 'phone', 'address', 'dob'];
+            const targetFields = ['full_name', 'email_address', 'mobile_number', 'location', 'date_of_birth'];
+            
+            try {
+                const response = await fetch(`${API_BASE}/suggest-mappings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sourceFields,
+                        targetFields,
+                        threshold: 0.3
+                    })
+                });
+                
+                const data = await response.json();
+                displayMappingResult(data.data, 'test-response');
+            } catch (error) {
+                document.getElementById('test-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testCase2() {
+            const sourceFields = ['customer_first_name', 'customer_last_name', 'date_of_birth', 'pan_card_number', 'mobile_phone', 'permanent_residential_address', 'annual_salary_income', 'company_organization_name', 'job_position_title'];
+            const targetFields = ['firstName', 'lastName', 'dob', 'pan', 'phone', 'address', 'income', 'company', 'position'];
+            
+            try {
+                const response = await fetch(`${API_BASE}/suggest-mappings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sourceFields,
+                        targetFields,
+                        threshold: 0.3
+                    })
+                });
+                
+                const data = await response.json();
+                displayMappingResult(data.data, 'test-response');
+            } catch (error) {
+                document.getElementById('test-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        async function testCase3() {
+            const sourceFields = ['usr_nm', 'cust_dob', 'pan_no', 'email_id', 'ph_no', 'addr', 'inc', 'cmp', 'desig'];
+            const targetFields = ['username', 'dateOfBirth', 'panNumber', 'emailAddress', 'phoneNumber', 'addressLine', 'income', 'companyName', 'designation'];
+            
+            try {
+                const response = await fetch(`${API_BASE}/suggest-mappings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sourceFields,
+                        targetFields,
+                        threshold: 0.2
+                    })
+                });
+                
+                const data = await response.json();
+                displayMappingResult(data.data, 'test-response');
+            } catch (error) {
+                document.getElementById('test-response').textContent = 
+                    `Error: ${error.message}`;
+            }
+        }
+
+        function displayMappingResult(result, elementId) {
+            const element = document.getElementById(elementId);
+            
+            let html = `
+                <h4>📊 Mapping Results</h4>
+                <p><strong>Total Source Fields:</strong> ${result.totalSourceFields}</p>
+                <p><strong>Total Target Fields:</strong> ${result.totalTargetFields}</p>
+                <p><strong>Mapped Fields:</strong> ${result.mappedFields}</p>
+                <p><strong>Unmapped Source:</strong> ${result.unmappedSource.join(', ') || 'None'}</p>
+                <p><strong>Unmapped Target:</strong> ${result.unmappedTarget.join(', ') || 'None'}</p>
+                
+                <h4>🔗 Suggested Mappings</h4>
+            `;
+            
+            result.suggestions.forEach((mapping, index) => {
+                const confidenceClass = mapping.confidence >= 0.7 ? 'confidence-high' : 
+                                     mapping.confidence >= 0.5 ? 'confidence-medium' : 'confidence-low';
+                
+                html += `
+                    <div class="mapping-item ${confidenceClass}">
+                        <strong>Mapping ${index + 1}:</strong>
+                        <span class="field-name">${mapping.sourceField}</span> → 
+                        <span class="field-name">${mapping.targetField}</span>
+                        <br>
+                        <strong>Confidence:</strong> ${(mapping.confidence * 100).toFixed(1)}% |
+                        <strong>Type:</strong> ${mapping.mappingType} |
+                        <strong>Transformation:</strong> ${mapping.transformation || 'None'}
+                    </div>
+                `;
+            });
+            
+            element.innerHTML = html;
+        }
+
+        // Load sample data on page load
+        window.onload = function() {
+            loadSampleData();
+        };
+    </script>
+</body>
+</html>
