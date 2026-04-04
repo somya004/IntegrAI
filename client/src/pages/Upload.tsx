@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -19,15 +18,11 @@ const Upload: React.FC<UploadProps> = ({ onParsed, onNext }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState('');
 
-  const sampleText = `The system should support seamless integration with external services including KYC, GST verification, and payment processing APIs.
-
-The KYC integration must enable customer identity verification by validating key attributes such as name, date of birth, PAN number, email address, and mobile number. The system should support configurable API versions and allow dynamic field mapping for different service providers.
-
-The GST integration should validate GSTIN and retrieve associated business registration details, ensuring compliance with applicable regulatory standards. The system must handle multiple API versions and support extensible adapter-based integration.
-
-Payment processing integration must facilitate secure transaction handling, including payment initiation, status tracking, and failure handling mechanisms.
-
-All integrations must adhere to enterprise-grade security and compliance requirements, including secure credential management, data encryption, audit logging, and tenant-level configuration isolation. The system should also support simulation and testing of integrations prior to production deployment.`;
+  const sampleText = `This system must integrate KYC and GST verification APIs. 
+The KYC integration should support customer identity verification with name, date of birth, 
+PAN number, email, and phone number validation. The GST integration must validate GSTIN 
+and business registration details. Payment processing is required for transaction handling. 
+All integrations should be secure and compliant with regulatory requirements.`;
 
   const handleAnalyze = async () => {
     if (!documentText.trim()) {

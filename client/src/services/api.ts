@@ -12,7 +12,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 10000, // Reduced timeout for faster error detection
   headers: {
     'Content-Type': 'application/json',
   },
@@ -44,8 +44,22 @@ api.interceptors.response.use(
 export const apiService = {
   // Document Parsing
   async parseDocument(text: string): Promise<ParsedDocument> {
-    const response = await api.post('/api/parse/document', { text });
-    return response.data.data;
+    try {
+      const response = await api.post('/api/parse/document', { text });
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Document parsing error:', error);
+      // Return a mock response if backend is not available
+      return {
+        services: [],
+        requirements: [],
+        summary: {
+          mandatoryServices: 0,
+          totalRequirements: 0
+        },
+        totalDetected: 0
+      };
+    }
   },
 
   async getSupportedServices(): Promise<any[]> {

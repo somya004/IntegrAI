@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -87,8 +86,8 @@ const AuditLogs: React.FC<AuditLogsProps> = ({ selectedTenant }) => {
                   <td className="py-3 px-4">
                     <span className="status-badge status-info">{log.action}</span>
                   </td>
-                  <td className="py-3 px-4 text-sm text-gray-900">{log.user}</td>
-                  <td className="py-3 px-4 text-sm text-gray-900">{log.tenant}</td>
+                  <td className="py-3 px-4 text-sm text-gray-900">{log.userId}</td>
+                  <td className="py-3 px-4 text-sm text-gray-900">{log.clientId}</td>
                   <td className="py-3 px-4 text-sm text-gray-600">
                     <div className="flex items-center">
                       <ClockIcon className="w-4 h-4 mr-1 text-gray-400" />

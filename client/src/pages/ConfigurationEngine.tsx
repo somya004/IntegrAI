@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -12,10 +11,9 @@ import {
   PlusIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
-import { ParseResult, APIConfiguration, FieldMapping, TransformationRule } from '../types/config';
+import { ParseResult, APIConfiguration, FieldMapping, TransformationRule, ConfigurationEngineProps } from '../types/config';
 
-// @ts-nocheck
-const ConfigurationEngine: React.FC<any> = ({ 
+const ConfigurationEngine: React.FC<ConfigurationEngineProps> = ({ 
   parsedRequirements, 
   onConfigurationGenerated 
 }) => {
@@ -37,7 +35,7 @@ const ConfigurationEngine: React.FC<any> = ({
     const generatedConfigs: APIConfiguration[] = [];
 
     // Generate configurations for each detected service
-    parsedRequirements.services.forEach((service, index) => {
+    parsedRequirements.services.forEach((service: any, index: number) => {
       const config: APIConfiguration = {
         id: `config_${index}`,
         name: service.name,
@@ -73,7 +71,7 @@ const ConfigurationEngine: React.FC<any> = ({
     });
 
     // Generate configurations for detected endpoints
-    parsedRequirements.endpoints.forEach((endpoint, index) => {
+    parsedRequirements.endpoints.forEach((endpoint: any, index: number) => {
       const config: APIConfiguration = {
         id: `endpoint_config_${index}`,
         name: `${endpoint.name} API`,
@@ -100,7 +98,7 @@ const ConfigurationEngine: React.FC<any> = ({
         transformations: generateEndpointTransformations(endpoint),
         metadata: {
           generatedAt: new Date().toISOString(),
-          confidence: endpoint.confidence as any,
+          confidence: endpoint.confidence,
           source: 'auto'
         }
       };

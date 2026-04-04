@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   PlayIcon,

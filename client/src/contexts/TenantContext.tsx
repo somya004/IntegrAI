@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { Client, ClientConfiguration, TenantContext } from '../types/config';
 
 const tenantContext = createContext<TenantContext | undefined>(undefined);
@@ -9,7 +9,7 @@ const TenantContextProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [configurations, setConfigurations] = useState<Record<string, ClientConfiguration>>({});
 
   // Initialize with default clients
-  useState(() => {
+  useEffect(() => {
     const defaultClients: Client[] = [
       {
         id: 'client-a',
@@ -86,7 +86,7 @@ const TenantContextProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setClients(defaultClients);
     setConfigurations(defaultConfigs);
-  });
+  }, []);
 
   const switchClient = useCallback((clientId: string) => {
     const client = clients.find(c => c.id === clientId);

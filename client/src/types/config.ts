@@ -191,6 +191,11 @@ export interface SimulationLog {
   error?: string;
 }
 
+export interface ConfigurationEngineProps {
+  parsedRequirements: ParseResult | null;
+  onConfigurationGenerated: (config: APIConfiguration[]) => void;
+}
+
 export interface SimulationEngineProps {
   configurations: APIConfiguration[];
   currentClient?: Client | null;
@@ -259,8 +264,6 @@ export interface AuditLog {
   category: 'config' | 'version' | 'client' | 'system' | 'security' | 'integration';
   severity: 'info' | 'warning' | 'error' | 'critical';
   userId?: string;
-  user?: string;
-  tenant?: string;
   clientId?: string;
   details: {
     oldValue?: any;

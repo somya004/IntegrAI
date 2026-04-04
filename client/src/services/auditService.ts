@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { AuditLog, AuditLogFilter, AuditLogExport } from '../types/config';
 
 class AuditService {
@@ -340,7 +339,7 @@ class AuditService {
 
     // Filter by action
     if (filter.action) {
-      filteredLogs = filteredLogs.filter(log => log.action.toLowerCase().includes(filter.action.toLowerCase()));
+      filteredLogs = filteredLogs.filter(log => log.action.toLowerCase().includes(filter.action!.toLowerCase()));
     }
 
     // Apply pagination
@@ -366,7 +365,7 @@ class AuditService {
   }
 
   // Export logs
-  exportLogs(filter?: AuditLogFilter): any {
+  exportLogs(filter?: AuditLogFilter): AuditLogExport {
     const logsToExport = filter ? this.getFilteredLogs(filter) : this.getLogs();
     
     // Calculate summary statistics

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   DocumentArrowUpIcon,
@@ -103,7 +102,7 @@ const RequirementParser: React.FC = () => {
               name: field.name,
               description: `${field.name} field for processing`,
               required: field.required,
-              dataType: field.type,
+              dataType: field.type as 'string' | 'number' | 'boolean' | 'object' | 'date',
               confidence: Math.min(0.9, 0.6 + (matches.length * 0.15)),
               validation: field.type === 'string' ? { minLength: 1, maxLength: 255 } : undefined,
               examples: [line.trim()],
