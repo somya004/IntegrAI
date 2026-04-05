@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   DocumentArrowUpIcon,
   DocumentTextIcon,
@@ -14,8 +15,20 @@ import {
   ServerIcon,
   TagIcon,
   ClipboardDocumentIcon,
-  SparklesIcon
+  SparklesIcon,
+  PlusIcon,
+  XMarkIcon,
+  ChevronDownIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
+import { useAppContext } from '../contexts/AppContext';
+
+interface SelectedIntegration {
+  service: string;
+  provider: string;
+  version: string;
+  endpoints: Record<string, string>;
+}
 
 interface NLPParseResult {
   timestamp: string;
@@ -41,14 +54,80 @@ interface NLPParseResult {
 }
 
 const RequirementParser: React.FC = () => {
+  const { state, actions } = useAppContext();
+  const navigate = useNavigate();
+  
   const [file, setFile] = useState<File | null>(null);
   const [documentText, setDocumentText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [parseResult, setParseResult] = useState<NLPParseResult | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
+  const [availableAdapters, setAvailableAdapters] = useState<any[]>([]);
 
-  // Service icons and colors
+  // Fetch available adapters
+  const fetchAdapters = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:5003/adapters');
+      const data = await response.json();
+      if (data.success) {
+        setAvailableAdapters(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch adapters:', error);
+    }
+  }, []);
+
+  // Match detected services with adapters
+  const matchServicesWithAdapters = useCallback(async (services: string[]) => {
+    try {
+      const response = await fetch('http://localhost:5003/match-adapters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          services_detected: services
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        actions.setSelectedAdapters(data.data);
+        
+        // Fetch schemas for each selected integration
+        for (const integration of data.data) {
+          await fetchSchema(integration.service, integration.version);
+        }
+      } else {
+        console.error('Failed to match adapters:', data.error);
+      }
+    } catch (error) {
+      console.error('Failed to match adapters:', error);
+    }
+  }, [actions]);
+
+  // Fetch schema for a specific service
+  const fetchSchema = useCallback(async (service: string, version: string) => {
+    try {
+      const response = await fetch(`http://localhost:5003/schema/${service}/${version}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Store schema for later use
+        return data.data;
+      }
+    } catch (error) {
+      console.error('Failed to fetch schema:', error);
+    }
+    return null;
+  }, []);
+
+  // Fetch adapters on component mount
+  useEffect(() => {
+    fetchAdapters();
+  }, [fetchAdapters]);
   const getServiceInfo = (service: string) => {
     switch (service.toLowerCase()) {
       case 'kyc':
@@ -81,28 +160,52 @@ const RequirementParser: React.FC = () => {
     return fieldTypes[field] || 'bg-gray-50 text-gray-700';
   };
 
-  // NLP-based parsing
-  const parseDocument = useCallback(async (text: string): Promise<NLPParseResult> => {
+  // Parse requirements using NLP service
+  const parseRequirements = useCallback(async () => {
+    if (!documentText.trim()) {
+      setError('Please enter some text to parse');
+      return;
+    }
+
+    setIsParsing(true);
+    setError('');
+
     try {
       const response = await fetch('http://localhost:5003/parse', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text: documentText,
+          options: {
+            extract_services: true,
+            extract_fields: true,
+            include_confidence: true,
+            include_metadata: true
+          }
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error('Parsing service unavailable');
-      }
+      const data = await response.json();
 
-      const result = await response.json();
-      return result.data;
+      if (data.success) {
+        setParseResult(data.data);
+        
+        // Automatically match detected services with adapters
+        if (data.data.services_detected && data.data.services_detected.length > 0) {
+          await matchServicesWithAdapters(data.data.services_detected);
+        }
+      } else {
+        setError(data.error || 'Parsing failed');
+      }
     } catch (error) {
-      // Fallback to mock parsing if service is unavailable
-      return mockParseDocument(text);
+      setError('Failed to connect to parsing service');
+      console.error(error);
+    } finally {
+      setIsParsing(false);
     }
-  }, []);
+  }, [documentText, matchServicesWithAdapters]);
 
   // Mock parsing as fallback
   const mockParseDocument = (text: string): NLPParseResult => {
@@ -148,9 +251,9 @@ const RequirementParser: React.FC = () => {
     };
   };
 
-  const handleParse = async () => {
+  const handleParseText = async () => {
     if (!documentText.trim()) {
-      setError('Please enter or paste your document text');
+      setError('Please enter some text to parse');
       return;
     }
 
@@ -158,8 +261,14 @@ const RequirementParser: React.FC = () => {
     setError('');
 
     try {
-      const result = await parseDocument(documentText);
+      const result = mockParseDocument(documentText);
       setParseResult(result);
+      
+      // Automatically match detected services with adapters
+      if (result.services_detected && result.services_detected.length > 0) {
+        await matchServicesWithAdapters(result.services_detected);
+        actions.setParsedData(result);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to parse document');
     } finally {
@@ -289,7 +398,7 @@ All integrations should be secure and compliant with regulatory requirements.`;
               )}
 
               <button
-                onClick={handleParse}
+                onClick={handleParseText}
                 disabled={isParsing || !documentText.trim()}
                 className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
@@ -347,21 +456,13 @@ All integrations should be secure and compliant with regulatory requirements.`;
                     {/* Mandatory Services */}
                     {parseResult.mandatory_services.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Mandatory Services</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {parseResult.mandatory_services.map((service) => {
-                            const serviceInfo = getServiceInfo(service);
-                            const Icon = serviceInfo.icon;
-                            return (
-                              <div
-                                key={service}
-                                className={`px-3 py-2 rounded-full border flex items-center space-x-2 ${serviceInfo.color}`}
-                              >
-                                <Icon className="w-4 h-4" />
-                                <span className="text-sm font-medium">{serviceInfo.name}</span>
-                              </div>
-                            );
-                          })}
+                        <h4 className="text-md font-medium text-gray-700 mb-2">Mandatory Services</h4>
+                        <div className="space-y-2">
+                          {parseResult.mandatory_services.map((service, index) => (
+                            <span key={index} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getServiceInfo(service).color}`}>
+                              {service}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -369,26 +470,86 @@ All integrations should be secure and compliant with regulatory requirements.`;
                     {/* Optional Services */}
                     {parseResult.optional_services.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Optional Services</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {parseResult.optional_services.map((service) => {
-                            const serviceInfo = getServiceInfo(service);
-                            const Icon = serviceInfo.icon;
-                            return (
-                              <div
-                                key={service}
-                                className={`px-3 py-2 rounded-full border flex items-center space-x-2 opacity-70 ${serviceInfo.color}`}
-                              >
-                                <Icon className="w-4 h-4" />
-                                <span className="text-sm font-medium">{serviceInfo.name}</span>
-                              </div>
-                            );
-                          })}
+                        <h4 className="text-md font-medium text-gray-700 mb-2">Optional Services</h4>
+                        <div className="space-y-2">
+                          {parseResult.optional_services.map((service, index) => (
+                            <span key={index} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700`}>
+                              {service}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
+
+                {/* Selected Integrations */}
+                {state.selectedAdapters.length > 0 && (
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <CheckCircleIcon className="w-5 h-5 mr-2 text-green-600" />
+                      Selected Integrations
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {state.selectedAdapters.map((integration: any, index: number) => {
+                        const serviceInfo = getServiceInfo(integration.service);
+                        const IconComponent = serviceInfo.icon;
+                        
+                        return (
+                          <div key={index} className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h4 className="text-md font-semibold text-gray-900">{integration.service}</h4>
+                                <p className="text-sm text-gray-600">
+                                  Provider: <span className="font-medium">{integration.provider}</span> | 
+                                  Version: <span className="font-medium">{integration.version}</span>
+                                </p>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => {
+                                    const updated = state.selectedAdapters.filter((_, i) => i !== index);
+                                    actions.setSelectedAdapters(updated);
+                                  }}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  <XMarkIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-gray-700">Available Endpoints:</p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {Object.entries(integration.endpoints || {}).map(([name, url], idx) => (
+                                  <div key={idx} className="bg-gray-50 rounded p-2">
+                                    <p className="text-xs font-medium text-gray-600">{name}</p>
+                                    <p className="text-sm text-gray-900 break-all">{String(url)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Continue to Field Mapping */}
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <button
+                        onClick={() => {
+                          // Navigate to field mapping with data
+                          actions.setCurrentStep('field-mapping');
+                          navigate('/field-mapping');
+                        }}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
+                      >
+                        Proceed to Mapping →
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Fields */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

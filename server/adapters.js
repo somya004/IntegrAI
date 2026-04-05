@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 5002;
+const PORT = process.env.PORT || 5003;
 
 // Middleware
 app.use(cors());
@@ -362,6 +362,133 @@ app.delete('/adapters/:id', (req, res) => {
       success: true,
       data: deletedAdapter,
       message: 'Adapter deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Match adapters with detected services
+app.post('/match-adapters', (req, res) => {
+  try {
+    const { services_detected } = req.body;
+    
+    if (!services_detected || !Array.isArray(services_detected)) {
+      return res.status(400).json({
+        success: false,
+        error: 'services_detected array is required'
+      });
+    }
+    
+    const matchedIntegrations = [];
+    
+    services_detected.forEach(service => {
+      const serviceLower = service.toLowerCase();
+      
+      // Find matching adapters
+      const matchingAdapters = adapters.filter(adapter => 
+        adapter.service.toLowerCase() === serviceLower
+      );
+      
+      if (matchingAdapters.length > 0) {
+        // Select the latest version (or first available)
+        const latestAdapter = matchingAdapters[matchingAdapters.length - 1];
+        
+        matchedIntegrations.push({
+          service: service,
+          provider: latestAdapter.provider,
+          version: latestAdapter.version,
+          endpoints: latestAdapter.endpoints,
+          requiredFields: latestAdapter.requiredFields,
+          authentication: latestAdapter.authentication,
+          rateLimit: latestAdapter.rateLimit,
+          description: latestAdapter.description
+        });
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: matchedIntegrations
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get schema for a specific service and version
+app.get('/schema/:service/:version', (req, res) => {
+  try {
+    const { service, version } = req.params;
+    
+    const adapter = adapters.find(adapter => 
+      adapter.service.toLowerCase() === service.toLowerCase() && 
+      adapter.version === version
+    );
+    
+    if (!adapter) {
+      return res.status(404).json({
+        success: false,
+        error: `Schema not found for ${service} v${version}`
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        service: adapter.service,
+        provider: adapter.provider,
+        version: adapter.version,
+        requiredFields: adapter.requiredFields,
+        optionalFields: adapter.optionalFields || [],
+        endpoints: adapter.endpoints,
+        authentication: adapter.authentication,
+        rateLimit: adapter.rateLimit
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Generate integration configuration
+app.post('/generate-config', (req, res) => {
+  try {
+    const { tenant_id, integrations, mappings } = req.body;
+    
+    if (!tenant_id || !integrations || !Array.isArray(integrations)) {
+      return res.status(400).json({
+        success: false,
+        error: 'tenant_id and integrations array are required'
+      });
+    }
+    
+    const configuration = {
+      tenant_id,
+      generated_at: new Date().toISOString(),
+      integrations: integrations.map(integration => ({
+        service: integration.service,
+        provider: integration.provider,
+        version: integration.version,
+        endpoints: integration.endpoints,
+        mappings: mappings[integration.service] || {},
+        authentication: integration.authentication,
+        rateLimit: integration.rateLimit
+      }))
+    };
+    
+    res.json({
+      success: true,
+      data: configuration
     });
   } catch (error) {
     res.status(500).json({

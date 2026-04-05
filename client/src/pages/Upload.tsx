@@ -1,28 +1,46 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   DocumentArrowUpIcon,
   ClipboardDocumentIcon,
   SparklesIcon 
 } from '@heroicons/react/24/outline';
-import { apiService } from '../services/api';
-import { ParsedDocument } from '../types/config';
+import { useAppContext } from '../contexts/AppContext';
 
-interface UploadProps {
-  onParsed: (data: ParsedDocument) => void;
-  onNext: () => void;
-}
-
-const Upload: React.FC<UploadProps> = ({ onParsed, onNext }) => {
+const Upload: React.FC = () => {
+  const { state, actions } = useAppContext();
+  const navigate = useNavigate();
+  
   const [documentText, setDocumentText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState('');
 
-  const sampleText = `This system must integrate KYC and GST verification APIs. 
-The KYC integration should support customer identity verification with name, date of birth, 
-PAN number, email, and phone number validation. The GST integration must validate GSTIN 
-and business registration details. Payment processing is required for transaction handling. 
-All integrations should be secure and compliant with regulatory requirements.`;
+  // Navigation guards - if data exists, redirect to appropriate step
+  React.useEffect(() => {
+    if (state.finalConfig) {
+      navigate('/simulation');
+      return;
+    }
+    if (state.mappings && Object.keys(state.mappings).length > 0) {
+      navigate('/config');
+      return;
+    }
+    if (state.selectedAdapters && state.selectedAdapters.length > 0) {
+      navigate('/mapping');
+      return;
+    }
+    if (state.schemas && Object.keys(state.schemas).length > 0) {
+      navigate('/mapping');
+      return;
+    }
+    if (state.parsedData) {
+      navigate('/dashboard');
+      return;
+    }
+  }, [state, navigate]);
+
+  const sampleText = `This system must integrate KYC and GST verification APIs. The KYC integration should support name, dob, PAN. GST should validate GSTIN. Payment processing is required.`;
 
   const handleAnalyze = async () => {
     if (!documentText.trim()) {
@@ -34,9 +52,42 @@ All integrations should be secure and compliant with regulatory requirements.`;
     setError('');
 
     try {
-      const result = await apiService.parseDocument(documentText);
-      onParsed(result);
-      onNext();
+      // Mock parsing result as specified
+      const mockResult = {
+        services_detected: ["KYC", "GST", "Payments"],
+        fields_detected: ["name", "dob", "pan", "gstin"],
+        mandatory_services: ["KYC", "GST"],
+        optional_services: ["Payments"],
+        confidence_score: 85,
+        processing_details: {
+          service_matches: {
+            'KYC': ['kyc', 'verification', 'identity'],
+            'GST': ['gst', 'tax', 'registration'],
+            'Payments': ['payment', 'transaction', 'amount']
+          },
+          field_matches: {
+            'name': ['name', 'fullname'],
+            'dob': ['dob', 'birth', 'date'],
+            'pan': ['pan', 'pannumber'],
+            'gstin': ['gstin', 'gst']
+          },
+          total_service_keywords_found: 6,
+          total_field_keywords_found: 4
+        },
+        metadata: {
+          parser_version: '1.0.0',
+          processing_method: 'keyword_matching_rule_based',
+          language: 'en'
+        }
+      };
+      
+      // Store parsed data in global state
+      console.log('📝 Upload - Generated Parsed Data:', mockResult);
+      actions.setParsedData(mockResult);
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      
     } catch (err: any) {
       setError(err.message || 'Failed to analyze document');
     } finally {
