@@ -10,6 +10,7 @@ const simulationRoutes = require('./routes/simulationRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 const configStorage = require('./config-storage');
 const aiRoutes = require('./routes/aiRoutes');
+const pipelineRoutes = require('./routes/pipelineRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +30,7 @@ app.use('/api/simulation', simulationRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/storage', configStorage);
 app.use('/api/ai', aiRoutes);
+app.use('/api/pipeline', pipelineRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
