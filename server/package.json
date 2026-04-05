@@ -1,40 +1,23 @@
 {
   "name": "configai-server",
   "version": "1.0.0",
-  "description": "ConfigAI Backend Server",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "adapters": "node adapters.js",
-    "nlp-parser": "node nlp-parser.js",
-    "field-mapping": "node field-mapping.js",
-    "multi-tenant": "node multi-tenant.js",
-    "enhanced-simulation": "node enhanced-simulation.js",
-    "security-audit": "node security-audit.js",
     "test": "jest"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "helmet": "^7.0.0",
-    "mammoth": "^1.12.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
     "morgan": "^1.10.0",
+    "dotenv": "^16.3.1",
     "multer": "^1.4.5-lts.1",
-    "pdf-parse": "^1.1.4",
-    "uuid": "^9.0.0"
+    "@google/generative-ai": "^0.1.3",
+    "openai": "^4.0.0"
   },
   "devDependencies": {
-    "jest": "^29.6.2",
     "nodemon": "^3.0.1"
-  },
-  "keywords": [
-    "ai",
-    "integration",
-    "api",
-    "configai"
-  ],
-  "author": "ConfigAI Team",
-  "license": "MIT"
+  }
 }

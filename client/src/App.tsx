@@ -5,7 +5,6 @@ import Navbar from './components/Navbar';
 import ProgressIndicator from './components/ProgressIndicator';
 import CreateIntegration from './pages/CreateIntegration';
 import RequirementParser from './pages/RequirementParser';
-import Upload from './pages/Upload';
 import Dashboard from './pages/Dashboard';
 import Builder from './pages/Builder';
 import Simulation from './pages/Simulation';
@@ -49,54 +48,21 @@ const AppContent: React.FC = () => {
                 <Route path="/" element={<RequirementParser />} />
                 <Route path="/parser" element={<RequirementParser />} />
                 <Route path="/create" element={<CreateIntegration />} />
-                <Route path="/upload" element={<Upload />} />
-                <Route 
-                  path="/dashboard" 
-                  element={<Dashboard />} 
-                />
-                <Route 
-                  path="/registry" 
-                  element={<AdapterRegistry />} 
-                />
-                <Route 
-                  path="/mapping" 
-                  element={<FieldMapping />} 
-                />
-                <Route 
-                  path="/field-mapping" 
-                  element={<FieldMappingEnhanced />} 
-                />
-                <Route 
-                  path="/config" 
-                  element={<Config />} 
-                />
-                <Route 
-                  path="/tenants" 
-                  element={<MultiTenantDashboard />} 
-                />
-                <Route 
-                  path="/builder" 
-                  element={<Builder services={[]} onConfigGenerated={() => {}} onNext={() => {}} />} 
-                />
-                <Route 
-                  path="/simulation" 
-                  element={<SimulationPage />} 
-                />
-                <Route 
-                  path="/enhanced-sim" 
-                  element={<EnhancedSimulation />} 
-                />
-                <Route 
-                  path="/security" 
-                  element={<SecurityAuditDashboard />} 
-                />
-                <Route 
-                  path="/business" 
-                  element={<BusinessImpactDashboard />} 
-                />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/registry" element={<AdapterRegistry />} />
+                <Route path="/mapping" element={<FieldMapping />} />
+                <Route path="/field-mapping" element={<FieldMappingEnhanced />} />
+                <Route path="/config" element={<Config />} />
+                <Route path="/tenants" element={<MultiTenantDashboard />} />
+                <Route path="/builder" element={<Builder services={[]} onConfigGenerated={() => {}} onNext={() => {}} />} />
+                <Route path="/business" element={<BusinessImpactDashboard />} />
                 <Route 
                   path="/audit" 
                   element={<AuditLogs selectedTenant={selectedTenant} />} 
+                />
+                <Route 
+                  path="/simulation-engine" 
+                  element={<Simulation configs={[]} onNext={() => {}} />} 
                 />
               </Routes>
               </motion.div>

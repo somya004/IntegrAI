@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -14,7 +14,6 @@ import {
   PlusIcon,
   CogIcon,
   ShieldCheckIcon,
-  TagIcon,
   BeakerIcon,
   CreditCardIcon,
   ServerIcon
@@ -42,7 +41,7 @@ interface Service {
   endpoints: Endpoint[];
   mandatory: boolean;
   confidence: number;
-  description?: string;
+  description: string;
 }
 
 interface Endpoint {
@@ -75,14 +74,15 @@ interface AuthRequirement {
 }
 
 const RequirementParser: React.FC = () => {
-  const { state, actions } = useAppContext();
+  const { actions } = useAppContext();
   const navigate = useNavigate();
   
   const [currentStep, setCurrentStep] = useState(1);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStage, setProcessingStage] = useState<'upload' | 'parsing' | 'ai_extraction' | 'output_ready'>('upload');
+  const [processingStage, setProcessingStage] = useState<'upload' | 'parsing' | 'ai_extraction' | 'output_ready' | 'complete' | 'error'>('upload');
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [integrationPlan, setIntegrationPlan] = useState<IntegrationPlan | null>(null);
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -133,168 +133,118 @@ const RequirementParser: React.FC = () => {
     }
   }, [handleFileUpload]);
 
-  // Process document through the pipeline
+  interface UploadResponse {
+    success: boolean;
+    extractedText: string;
+    filename: string;
+    error?: string;
+  }
+
+// Process document through the new parser API
   const processDocument = async () => {
-    if (!uploadedFile) {
-      setError('Please select a file first');
-      return;
-    }
+    if (!uploadedFile) return;
 
     setIsProcessing(true);
     setError('');
-    setProcessingProgress(0);
-    
+    setCurrentStep(2);
+    setProcessingStage('upload');
+    setUploadProgress(0);
+
     try {
-      // Step 1: Upload
-      setProcessingStage('upload');
-      setProcessingProgress(25);
-      
+      // Create FormData for file upload
       const formData = new FormData();
       formData.append('file', uploadedFile);
-      
-      const uploadResponse = await fetch('http://localhost:5001/api/parse-document', {
-        method: 'POST',
-        body: formData
+
+      // Upload file and extract text
+      const uploadPromise = new Promise<UploadResponse>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              if (response.success) {
+                resolve(response);
+              } else {
+                reject(new Error(response.error || 'Upload failed'));
+              }
+            } catch (e) {
+              reject(new Error('Invalid response format'));
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Upload failed'));
+        });
+
+        xhr.open('POST', 'http://localhost:5001/api/parser/upload');
+        xhr.send(formData);
       });
-      
-      if (!uploadResponse.ok) {
-        throw new Error('Upload failed');
-      }
-      
-      // Step 2: Parsing
+
+      const uploadResult = await uploadPromise;
+      setUploadProgress(0);
       setProcessingStage('parsing');
-      setProcessingProgress(50);
-      
-      const uploadResult = await uploadResponse.json();
-      
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error || 'Parsing failed');
+
+      // Send extracted text to AI API
+      const aiResponse = await fetch('http://localhost:5001/api/ai/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: uploadResult.extractedText
+        })
+      });
+
+      if (!aiResponse.ok) {
+        const errorData = await aiResponse.json();
+        throw new Error(errorData.error || 'AI parsing failed');
       }
-      
-      // Step 3: AI Extraction
-      setProcessingStage('ai_extraction');
-      setProcessingProgress(75);
-      
-      // Simulate AI processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate integration plan
-      const plan = await generateIntegrationPlan(uploadResult.data.raw_text);
-      setIntegrationPlan(plan);
-      
-      // Step 4: Output Ready
-      setProcessingStage('output_ready');
-      setProcessingProgress(100);
-      
-      // Generate unique parser ID
-      const id = `parser_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      setParserId(id);
-      
-      setCurrentStep(2);
-      
-    } catch (error: any) {
-      console.error('Processing error:', error);
-      setError(error.message || 'Failed to process document');
-      
-      // Fallback to mock data
-      const mockPlan = generateMockIntegrationPlan();
-      setIntegrationPlan(mockPlan);
-      setParserId(`parser_fallback_${Date.now()}`);
-      setCurrentStep(2);
+
+      const aiResult = await aiResponse.json();
+
+      if (!aiResult.success) {
+        throw new Error(aiResult.error);
+      }
+
+      // Convert AI response to our format
+      const integrationPlan = convertToIntegrationPlan(aiResult.data);
+      setIntegrationPlan(integrationPlan);
+      setProcessingStage('complete');
+
+    } catch (err) {
+      console.error('Processing error:', err);
+      setError(err instanceof Error ? err.message : 'Processing failed');
+      setProcessingStage('error');
     } finally {
       setIsProcessing(false);
-      setProcessingProgress(0);
     }
   };
 
-  // Generate integration plan from text
-  const generateIntegrationPlan = async (text: string): Promise<IntegrationPlan> => {
-    // In a real implementation, this would call an AI service
-    // For now, we'll use pattern matching
+  // Convert parser API response to our internal format
+  const convertToIntegrationPlan = (parserData: any): IntegrationPlan => {
+    const services: Service[] = parserData.services.map((service: any) => ({
+      name: service.name,
+      type: service.type,
+      endpoints: service.endpoints,
+      mandatory: service.mandatory,
+      confidence: service.confidence || 85, // Use AI confidence or default
+      description: `${service.type} service for ${service.name.toLowerCase()}`
+    }));
     
-    const lowerText = text.toLowerCase();
-    const services: Service[] = [];
     const dependencies: Dependency[] = [];
     const dataFlow: DataFlow[] = [];
     const authRequirements: AuthRequirement[] = [];
-    
-    // Service detection
-    if (lowerText.includes('kyc') || lowerText.includes('identity')) {
-      services.push({
-        name: 'KYC Verification',
-        type: 'identity',
-        endpoints: [
-          {
-            url: '/api/kyc/verify',
-            method: 'POST',
-            request_fields: ['name', 'dob', 'pan', 'email', 'phone'],
-            response_fields: ['verification_id', 'status', 'score'],
-            description: 'Verify customer identity documents'
-          }
-        ],
-        mandatory: true,
-        confidence: 90,
-        description: 'Customer identity verification service'
-      });
-      
-      authRequirements.push({
-        service: 'KYC Verification',
-        auth_type: 'Bearer Token',
-        required_scopes: ['kyc.verify', 'kyc.read'],
-        description: 'Bearer token for KYC API access'
-      });
-    }
-    
-    if (lowerText.includes('gst') || lowerText.includes('tax')) {
-      services.push({
-        name: 'GST Validation',
-        type: 'tax',
-        endpoints: [
-          {
-            url: '/api/gst/validate',
-            method: 'POST',
-            request_fields: ['gstin', 'business_name'],
-            response_fields: ['gstin_status', 'registration_date', 'business_details'],
-            description: 'Validate GST registration details'
-          }
-        ],
-        mandatory: true,
-        confidence: 85,
-        description: 'GST registration validation service'
-      });
-      
-      authRequirements.push({
-        service: 'GST Validation',
-        auth_type: 'API Key',
-        description: 'API key for GST validation service'
-      });
-    }
-    
-    if (lowerText.includes('payment') || lowerText.includes('transaction')) {
-      services.push({
-        name: 'Payment Processing',
-        type: 'payment',
-        endpoints: [
-          {
-            url: '/api/payment/process',
-            method: 'POST',
-            request_fields: ['amount', 'currency', 'account_number'],
-            response_fields: ['transaction_id', 'status', 'timestamp'],
-            description: 'Process payment transactions'
-          }
-        ],
-        mandatory: false,
-        confidence: 80,
-        description: 'Payment processing and transaction handling'
-      });
-      
-      authRequirements.push({
-        service: 'Payment Processing',
-        auth_type: 'OAuth 2.0',
-        required_scopes: ['payment.process', 'payment.read'],
-        description: 'OAuth 2.0 for payment processing'
-      });
-    }
     
     // Generate dependencies
     if (services.length > 1) {
@@ -318,9 +268,18 @@ const RequirementParser: React.FC = () => {
             from_service: 'User Input',
             to_service: service.name,
             data_fields: [field],
-            trigger: 'immediate'
+            trigger: 'immediate' as const
           });
         });
+      });
+    });
+    
+    // Generate auth requirements
+    parserData.services.forEach((service: any) => {
+      authRequirements.push({
+        service: service.name,
+        auth_type: service.authentication,
+        description: `${service.authentication} for ${service.name}`
       });
     });
     
@@ -340,86 +299,19 @@ const RequirementParser: React.FC = () => {
     };
   };
 
-  // Generate mock integration plan for fallback
-  const generateMockIntegrationPlan = (): IntegrationPlan => ({
-    integration_plan: {
-      services: [
-        {
-          name: 'KYC Verification',
-          type: 'identity',
-          endpoints: [
-            {
-              url: '/api/kyc/verify',
-              method: 'POST',
-              request_fields: ['name', 'dob', 'pan', 'email', 'phone'],
-              response_fields: ['verification_id', 'status', 'score'],
-              description: 'Verify customer identity documents'
-            }
-          ],
-          mandatory: true,
-          confidence: 90,
-          description: 'Customer identity verification service'
-        },
-        {
-          name: 'GST Validation',
-          type: 'tax',
-          endpoints: [
-            {
-              url: '/api/gst/validate',
-              method: 'POST',
-              request_fields: ['gstin', 'business_name'],
-              response_fields: ['gstin_status', 'registration_date'],
-              description: 'Validate GST registration details'
-            }
-          ],
-          mandatory: true,
-          confidence: 85,
-          description: 'GST registration validation service'
-        }
-      ],
-      dependencies: [
-        {
-          service: 'GST Validation',
-          depends_on: 'KYC Verification',
-          type: 'sequential',
-          description: 'GST validation requires KYC completion'
-        }
-      ],
-      dataFlow: [
-        {
-          from_service: 'User Input',
-          to_service: 'KYC Verification',
-          data_fields: ['name', 'dob', 'pan', 'email', 'phone'],
-          trigger: 'immediate'
-        },
-        {
-          from_service: 'KYC Verification',
-          to_service: 'GST Validation',
-          data_fields: ['verification_id'],
-          trigger: 'immediate'
-        }
-      ],
-      auth_requirements: [
-        {
-          service: 'KYC Verification',
-          auth_type: 'Bearer Token',
-          required_scopes: ['kyc.verify', 'kyc.read'],
-          description: 'Bearer token for KYC API access'
-        },
-        {
-          service: 'GST Validation',
-          auth_type: 'API Key',
-          description: 'API key for GST validation service'
-        }
-      ]
-    },
-    confidence_score: 87,
-    processing_metadata: {
-      timestamp: new Date().toISOString(),
-      parser_version: '2.0.0',
-      processing_time: 2500
-    }
-  });
+  // Get confidence color
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 85) return 'text-green-600 bg-green-50';
+    if (confidence >= 70) return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
+  };
+
+  // Get confidence label
+  const getConfidenceLabel = (confidence: number) => {
+    if (confidence >= 85) return 'High';
+    if (confidence >= 70) return 'Medium';
+    return 'Low';
+  };
 
   // Update service in the plan
   const updateService = (index: number, field: keyof Service, value: any) => {
@@ -467,6 +359,48 @@ const RequirementParser: React.FC = () => {
     });
   };
 
+  // Save changes to state
+  const saveChanges = () => {
+    if (!integrationPlan) return;
+    
+    // Store in global state for use in other components
+    const parsedData = {
+      services_detected: integrationPlan.integration_plan.services.map(s => s.name),
+      fields_detected: integrationPlan.integration_plan.services.flatMap(s => 
+        s.endpoints.flatMap(e => [...e.request_fields, ...e.response_fields])
+      ),
+      mandatory_services: integrationPlan.integration_plan.services.filter(s => s.mandatory).map(s => s.name),
+      optional_services: integrationPlan.integration_plan.services.filter(s => !s.mandatory).map(s => s.name),
+      confidence_score: integrationPlan.confidence_score,
+      processing_details: {
+        service_matches: {},
+        field_matches: {},
+        total_service_keywords_found: integrationPlan.integration_plan.services.length,
+        total_field_keywords_found: integrationPlan.integration_plan.services.flatMap(s => 
+          s.endpoints.flatMap(e => [...e.request_fields, ...e.response_fields])
+        ).length
+      },
+      metadata: {
+        parser_version: integrationPlan.processing_metadata.parser_version,
+        processing_method: 'ai_enhanced_pipeline',
+        language: 'en'
+      },
+      integration_plan: integrationPlan
+    };
+    
+    actions.setParsedData(parsedData);
+    
+    // Show success message
+    alert('Changes saved successfully! Your updated integration plan has been stored.');
+  };
+
+  // Reset to original parsed data
+  const resetToOriginal = () => {
+    // This would reset to the originally parsed data
+    // For now, we'll reload the page
+    window.location.reload();
+  };
+
   // Remove service
   const removeService = (index: number) => {
     if (!integrationPlan) return;
@@ -483,7 +417,7 @@ const RequirementParser: React.FC = () => {
   };
 
   // Send to Integration Registry
-  const sendToIntegrationRegistry = () => {
+  const sendToIntegrationRegistry = async () => {
     if (!integrationPlan) return;
     
     // Convert to the format expected by the existing system
@@ -511,10 +445,47 @@ const RequirementParser: React.FC = () => {
       integration_plan: integrationPlan
     };
     
-    // Store in global state
+    // Store in global state for use in Integration Registry
     actions.setParsedData(parsedData);
     
-    // Navigate to registry
+    // Store with unique ID for backend persistence
+    const configId = `config_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store in localStorage for persistence
+    localStorage.setItem('currentIntegrationConfig', JSON.stringify({
+      id: configId,
+      data: parsedData,
+      timestamp: new Date().toISOString(),
+      parserId: parserId
+    }));
+    
+    // Also save to backend storage
+    try {
+      const saveResponse = await fetch('http://localhost:5001/api/storage/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          configId: configId,
+          parserId: parserId,
+          data: parsedData,
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      if (saveResponse.ok) {
+        // Configuration saved successfully
+      } else {
+        // Failed to save to backend storage, continuing with local storage
+      }
+    } catch (error) {
+      // Backend storage error
+    }
+    
+    // Configuration saved successfully
+    
+    // Navigate to Integration Registry
     navigate('/registry');
   };
 
@@ -606,7 +577,7 @@ const RequirementParser: React.FC = () => {
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Processing...</span>
-                <span className="text-sm text-gray-500">{processingProgress}%</span>
+                <span className="text-sm text-gray-500">{Math.round(processingProgress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -614,6 +585,22 @@ const RequirementParser: React.FC = () => {
                   style={{ width: `${processingProgress}%` }}
                 />
               </div>
+              
+              {/* Upload Progress */}
+              {processingStage === 'upload' && uploadProgress > 0 && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-700">Uploading file...</span>
+                    <span className="text-sm text-blue-600">{Math.round(uploadProgress)}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -628,8 +615,10 @@ const RequirementParser: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               className="bg-white rounded-xl shadow-lg border border-gray-200 p-8"
             >
-              <h2 className="text-2xl font-semibold text-gray-900 mb-6">Upload Requirements Document</h2>
-              
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Integration Plan</h2>
+              <p className="text-gray-600 mb-6">
+                Upload and parse your integration requirements document to extract structured services and endpoints.
+              </p>
               {/* File Upload Area */}
               <div
                 className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
@@ -757,17 +746,24 @@ const RequirementParser: React.FC = () => {
                           type="text"
                           value={service.name}
                           onChange={(e) => updateService(index, 'name', e.target.value)}
-                          className="text-lg font-semibold bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none flex-1"
+                          className={`text-lg font-semibold bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none flex-1 ${
+                            service.mandatory ? 'font-bold text-red-700' : ''
+                          }`}
                           placeholder="Service Name"
                         />
                         <span className={`px-3 py-1 text-xs font-medium rounded-full ${getServiceColor(service.type)}`}>
                           {service.type}
                         </span>
-                        {service.mandatory && (
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-                            Mandatory
-                          </span>
-                        )}
+                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                          service.mandatory 
+                            ? 'bg-red-100 text-red-800 border border-red-300' 
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {service.mandatory ? 'MANDATORY' : 'OPTIONAL'}
+                        </span>
+                        <div className={`px-3 py-1 text-xs font-medium rounded-full ${getConfidenceColor(service.confidence)}`}>
+                          {service.confidence}%
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -911,10 +907,27 @@ const RequirementParser: React.FC = () => {
                 </motion.div>
               ))}
 
-              {/* JSON Output */}
+              {/* Structured JSON Output - Cards View */}
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Integration Plan (JSON)</h3>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-gray-900 mb-2">Integration Services</h2>
+                    <div className="flex items-center space-x-4 text-sm">
+                      <span className="text-gray-600">
+                        Total: <span className="font-bold text-gray-900">{integrationPlan.integration_plan.services.length}</span>
+                      </span>
+                      <span className="text-red-600">
+                        Mandatory: <span className="font-bold text-red-700">
+                          {integrationPlan.integration_plan.services.filter(s => s.mandatory).length}
+                        </span>
+                      </span>
+                      <span className="text-gray-600">
+                        Optional: <span className="font-bold text-gray-900">
+                          {integrationPlan.integration_plan.services.filter(s => !s.mandatory).length}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                   <button
                     onClick={() => navigator.clipboard.writeText(JSON.stringify(integrationPlan, null, 2))}
                     className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
@@ -923,28 +936,201 @@ const RequirementParser: React.FC = () => {
                     Copy JSON
                   </button>
                 </div>
-                <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto max-h-96">
-                  <pre className="text-green-400 text-sm">
-                    {JSON.stringify(integrationPlan, null, 2)}
-                  </pre>
+                
+                <div className="space-y-4">
+                  {integrationPlan.integration_plan.services.map((service, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <h4 className={`text-md font-semibold ${
+                            service.mandatory ? 'text-red-700 font-bold' : 'text-gray-900'
+                          }`}>
+                            {service.name}
+                          </h4>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getServiceColor(service.type)}`}>
+                            {service.type}
+                          </span>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            service.mandatory 
+                              ? 'bg-red-100 text-red-800 border border-red-300' 
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {service.mandatory ? 'MANDATORY' : 'OPTIONAL'}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className={`px-3 py-1 text-xs font-medium rounded-full ${getConfidenceColor(service.confidence)}`}>
+                            {service.confidence}% Confidence
+                          </div>
+                          <span className={`text-xs font-medium ${
+                            service.confidence >= 85 ? 'text-green-600' :
+                            service.confidence >= 70 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {getConfidenceLabel(service.confidence)} AI Certainty
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Authentication</p>
+                          <p className="text-sm text-gray-900 bg-white px-2 py-1 rounded border border-gray-200">
+                            {integrationPlan.integration_plan.auth_requirements.find(req => req.service === service.name)?.auth_type || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Description</p>
+                          <p className="text-sm text-gray-900 bg-white px-2 py-1 rounded border border-gray-200">
+                            {service.description || 'No description provided'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-1">Endpoints</p>
+                        <div className="space-y-2">
+                          {service.endpoints.map((endpoint, endpointIndex) => (
+                            <div key={endpointIndex} className="bg-white rounded border border-gray-200 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <input
+                                  type="text"
+                                  value={endpoint.url}
+                                  onChange={(e) => {
+                                    const updatedEndpoints = [...service.endpoints];
+                                    updatedEndpoints[endpointIndex] = { 
+                                      ...endpoint, 
+                                      url: e.target.value 
+                                    };
+                                    updateService(index, 'endpoints', updatedEndpoints);
+                                  }}
+                                  className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm ${
+                                    service.mandatory ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                                  }`}
+                                  placeholder="/api/endpoint"
+                                />
+                                <select
+                                  value={endpoint.method}
+                                  onChange={(e) => {
+                                    const updatedEndpoints = [...service.endpoints];
+                                    updatedEndpoints[endpointIndex] = { 
+                                      ...endpoint, 
+                                      method: e.target.value 
+                                    };
+                                    updateService(index, 'endpoints', updatedEndpoints);
+                                  }}
+                                  className={`px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    service.mandatory ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                                  }`}
+                                >
+                                  <option value="GET">GET</option>
+                                  <option value="POST">POST</option>
+                                  <option value="PUT">PUT</option>
+                                  <option value="DELETE">DELETE</option>
+                                </select>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <p className="text-xs font-medium text-gray-600 mb-1">Request Fields</p>
+                                  <input
+                                    type="text"
+                                    value={endpoint.request_fields.join(', ')}
+                                    onChange={(e) => {
+                                      const updatedEndpoints = [...service.endpoints];
+                                      updatedEndpoints[endpointIndex] = { 
+                                        ...endpoint, 
+                                        request_fields: e.target.value.split(',').map(f => f.trim()).filter(f => f)
+                                      };
+                                      updateService(index, 'endpoints', updatedEndpoints);
+                                    }}
+                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                                      service.mandatory ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                                    }`}
+                                    placeholder="field1, field2, field3"
+                                  />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-gray-600 mb-1">Response Fields</p>
+                                  <input
+                                    type="text"
+                                    value={endpoint.response_fields.join(', ')}
+                                    onChange={(e) => {
+                                      const updatedEndpoints = [...service.endpoints];
+                                      updatedEndpoints[endpointIndex] = { 
+                                        ...endpoint, 
+                                        response_fields: e.target.value.split(',').map(f => f.trim()).filter(f => f)
+                                      };
+                                      updateService(index, 'endpoints', updatedEndpoints);
+                                    }}
+                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
+                                      service.mandatory ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                                    }`}
+                                    placeholder="field1, field2, field3"
+                                  />
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-between mt-2">
+                                <button
+                                  onClick={() => {
+                                    const updatedEndpoints = [...service.endpoints];
+                                    updatedEndpoints.splice(endpointIndex, 1);
+                                    updateService(index, 'endpoints', updatedEndpoints);
+                                  }}
+                                  className="text-red-600 hover:text-red-800 text-sm"
+                                >
+                                  Remove Endpoint
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const updatedEndpoints = [...service.endpoints];
+                                    const newEndpoint = {
+                                      url: '',
+                                      method: 'POST',
+                                      request_fields: [],
+                                      response_fields: []
+                                    };
+                                    updatedEndpoints.splice(endpointIndex + 1, 0, newEndpoint);
+                                    updateService(index, 'endpoints', updatedEndpoints);
+                                  }}
+                                  className="text-green-600 hover:text-green-800 text-sm"
+                                >
+                                  Add Endpoint
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-between">
-                <button
-                  onClick={() => setCurrentStep(1)}
-                  className="px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center"
-                >
-                  <ArrowLeftIcon className="w-5 h-5 mr-2" />
-                  Back
-                </button>
+              <div className="flex justify-between items-center">
+                <div className="flex space-x-3">
+                  <button
+                    onClick={resetToOriginal}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center"
+                  >
+                    <ArrowLeftIcon className="w-5 h-5 mr-2" />
+                    Reset
+                  </button>
+                  <button
+                    onClick={saveChanges}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
+                  >
+                    <CheckCircleIcon className="w-5 h-5 mr-2" />
+                    Save Changes
+                  </button>
+                </div>
                 <button
                   onClick={sendToIntegrationRegistry}
                   className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
                 >
                   <ShieldCheckIcon className="w-5 h-5 mr-2" />
-                  Send to Integration Registry
+                  Proceed to Integration Registry
                   <ArrowRightIcon className="w-5 h-5 ml-2" />
                 </button>
               </div>
