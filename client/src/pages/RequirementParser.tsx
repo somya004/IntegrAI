@@ -495,6 +495,50 @@ const RequirementParser: React.FC = () => {
     return new Promise(resolve => setTimeout(resolve, ms));
   };
 
+  // STEP 1: GLOBAL FALLBACK DATA (CRITICAL)
+  const getSafeData = (parsedRequirements: any, generatedConfigs: any[]) => {
+    console.log("🛡️ Getting safe data for pipeline flow");
+    console.log("📊 Input parsedRequirements:", parsedRequirements);
+    console.log("⚙️ Input generatedConfigs:", generatedConfigs);
+
+    if (!parsedRequirements || !parsedRequirements.services) {
+      console.log("🔄 Using fallback parsed requirements");
+      parsedRequirements = {
+        services: [
+          {
+            name: "KYC Verification",
+            endpoints: ["/kyc/verify"]
+          },
+          {
+            name: "Payment Gateway", 
+            endpoints: ["/payment/initiate"]
+          }
+        ]
+      };
+    }
+
+    if (!generatedConfigs || generatedConfigs.length === 0) {
+      console.log("🔄 Using fallback generated configs");
+      generatedConfigs = parsedRequirements.services.map((service: any) => ({
+        service: service.name,
+        fieldMapping: {
+          fullName: "name",
+          dateOfBirth: "dob",
+          phone: "mobile",
+          pan: "pan"
+        },
+        transformations: [
+          "format_date",
+          "add_country_code"
+        ],
+        version: "v1"
+      }));
+    }
+
+    console.log("✅ Safe data ready:", { parsedRequirements, generatedConfigs });
+    return { parsedRequirements, generatedConfigs };
+  };
+
   // Extract text from file with PDF support
   const extractTextFromFile = async (file: File): Promise<string> => {
     console.log("📁 FILE:", file.name, "SIZE:", (file.size / 1024 / 1024).toFixed(2) + "MB");
@@ -1906,23 +1950,18 @@ const RequirementParser: React.FC = () => {
   };
 
   const handleNext = () => {
-    console.log("STEP: Attempting to move from step", currentStep);
-    console.log("Parsed data available:", !!integrationPlan);
+    console.log("STEP: Moving to next step", currentStep);
+    console.log("FINAL FLOW DATA:", {
+      integrationPlan,
+      generatedConfigs,
+      integrationResult
+    });
     
-    // Guard against skipping steps without data
-    if (currentStep === 2 && !integrationPlan) {
-      console.warn("Cannot move forward: No parsed data");
-      setWarning("Please complete AI processing first");
-      return;
-    }
+    // STEP 3: ALWAYS ENABLE NEXT BUTTON
+    // ❌ REMOVE: All blocking conditions
+    // ✅ REPLACE: Always allow progression
     
-    if (currentStep === 3 && !integrationPlan) {
-      console.warn("Cannot move forward: No parsed data");
-      setWarning("Please complete validation first");
-      return;
-    }
-    
-    console.log("STEP: Moving to step", currentStep + 1);
+    console.log("🎯 Moving to step", currentStep + 1, "- no blocking conditions");
     setCurrentStep(currentStep + 1);
   };
 
@@ -2756,6 +2795,10 @@ const RequirementParser: React.FC = () => {
                     console.log("Integration Registry completed");
                     setIntegrationResult(result);
                     setShowIntegrationRegistry(true);
+                    
+                    // 🚀 MOVE TO NEXT STEP AUTOMATICALLY
+                    console.log("🎯 Integration complete - moving to final step (Step 5)");
+                    setCurrentStep(5);
                   }}
                 />
               </div>
@@ -2836,14 +2879,26 @@ const RequirementParser: React.FC = () => {
                 {/* Show Integration Registry if toggled */}
                 {showIntegrationRegistry && (
                   <div className="border-t pt-6">
-                    <IntegrationRegistry 
-                      parsedData={integrationPlan}
-                      onIntegrationComplete={(result) => {
-                        console.log("Integration Registry completed");
-                        setIntegrationResult(result);
-                        setShowIntegrationRegistry(true);
-                      }}
-                    />
+                    {/* STEP 4: AUTO FALLBACK BEFORE RENDER */}
+                    {(() => {
+                      const safeData = getSafeData(integrationPlan, generatedConfigs);
+                      console.log("🛡️ Using safe data for Integration Registry:", safeData);
+                      return (
+                        <IntegrationRegistry 
+                          parsedData={safeData.parsedRequirements}
+                          generatedConfigs={safeData.generatedConfigs}
+                          onIntegrationComplete={(result) => {
+                            console.log("Integration Registry completed");
+                            setIntegrationResult(result);
+                            setShowIntegrationRegistry(true);
+                            
+                            // 🚀 MOVE TO NEXT STEP AUTOMATICALLY
+                            console.log("🎯 Integration complete - moving to final step (Step 5)");
+                            setCurrentStep(5);
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                 )}
 
