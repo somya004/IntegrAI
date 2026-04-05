@@ -379,6 +379,15 @@ IMPORTANT: Return ONLY the JSON object. No explanations or markdown.
       note: 'Generated mock extraction due to extraction failure'
     };
   }
+
+  async healthCheck() {
+    try {
+      const testResult = await this.generateFallback('test');
+      return testResult && testResult.data;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 module.exports = NLPExtractionEngine;

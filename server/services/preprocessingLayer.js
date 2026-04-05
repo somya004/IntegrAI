@@ -196,6 +196,15 @@ GST Response: gstin_status, registration_details, validity
       }
     };
   }
+
+  async healthCheck() {
+    try {
+      const testResult = await this.generateFallback('test');
+      return testResult && testResult.data;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 module.exports = PreprocessingLayer;

@@ -785,6 +785,15 @@ class StructuringEngine {
       }
     };
   }
+
+  async healthCheck() {
+    try {
+      const testResult = await this.generateFallback('test');
+      return testResult && testResult.data;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 module.exports = StructuringEngine;

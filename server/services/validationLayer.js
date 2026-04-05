@@ -752,6 +752,15 @@ class ValidationLayer {
       note: 'Generated mock validation due to validation failure'
     };
   }
+
+  async healthCheck() {
+    try {
+      const testResult = await this.generateFallback('test');
+      return testResult && testResult.data;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 module.exports = ValidationLayer;

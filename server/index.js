@@ -11,9 +11,10 @@ const auditRoutes = require('./routes/auditRoutes');
 const configStorage = require('./config-storage');
 const aiRoutes = require('./routes/aiRoutes');
 const pipelineRoutes = require('./routes/pipelineRoutes');
+const integrationRegistryRoutes = require('./routes/integrationRegistryRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 app.use(helmet());
 app.use(cors({
@@ -31,6 +32,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/storage', configStorage);
 app.use('/api/ai', aiRoutes);
 app.use('/api/pipeline', pipelineRoutes);
+app.use('/api/integration-registry', integrationRegistryRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });

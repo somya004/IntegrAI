@@ -1,0 +1,28 @@
+API Requirements Document
+
+This document outlines the API integration requirements for our payment processing system.
+
+Services Required:
+1. KYC Service - Customer verification and identity checking
+2. Payment Service - Payment processing and transaction handling  
+3. GST Service - Tax calculation and compliance
+4. Fraud Detection Service - Risk assessment and fraud prevention
+
+Authentication Requirements:
+- OAuth2 authentication required for all services
+- API key authentication as fallback
+- Bearer token support for secure access
+
+Endpoints:
+- /api/kyc/verify - Verify customer identity
+- /api/payment/process - Process payment transactions
+- /api/gst/calculate - Calculate GST amounts
+- /api/fraud/assess - Assess transaction risk
+
+Data Flow:
+1. Customer data flows to KYC service
+2. Verified customer data flows to payment service
+3. Payment data flows to GST service for tax calculation
+4. All transactions flow through fraud detection service
+
+This is a test document to verify the AI processing pipeline works correctly.

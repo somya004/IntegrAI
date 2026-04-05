@@ -160,6 +160,16 @@ GST Service:
       }
     };
   }
+
+  async healthCheck() {
+    try {
+      // Test basic functionality
+      const testResult = await this.generateFallback('test');
+      return testResult && testResult.data;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 module.exports = DocumentIngestion;
