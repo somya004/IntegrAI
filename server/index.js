@@ -8,6 +8,7 @@ const parseRoutes = require('./routes/parseRoutes');
 const configRoutes = require('./routes/configRoutes');
 const simulationRoutes = require('./routes/simulationRoutes');
 const auditRoutes = require('./routes/auditRoutes');
+const documentParser = require('./document-parser');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -27,6 +28,7 @@ app.use('/api/parse', parseRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/simulation', simulationRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api', documentParser);
 
 // Health check
 app.get('/health', (req, res) => {

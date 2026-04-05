@@ -7,7 +7,7 @@ const ProgressIndicator: React.FC = () => {
   const navigate = useNavigate();
 
   const steps = [
-    { id: 1, name: 'Input', path: '/', completed: !!state.parsedData },
+    { id: 1, name: 'Requirement Parser', path: '/parser', completed: !!state.parsedData },
     { id: 2, name: 'Dashboard', path: '/dashboard', completed: !!state.parsedData },
     { id: 3, name: 'Registry', path: '/registry', completed: !!(state.selectedAdapters && state.selectedAdapters.length > 0) },
     { id: 4, name: 'Mapping', path: '/mapping', completed: !!(state.mappings && Object.keys(state.mappings).length > 0) },

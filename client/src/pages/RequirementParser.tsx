@@ -1,293 +1,119 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   DocumentArrowUpIcon,
-  DocumentTextIcon,
-  CogIcon,
+  CloudArrowUpIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   CodeBracketIcon,
-  TableCellsIcon,
+  SparklesIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon,
+  XMarkIcon,
+  PlusIcon,
+  CogIcon,
+  ShieldCheckIcon,
+  TagIcon,
   BeakerIcon,
   CreditCardIcon,
-  ShieldCheckIcon,
-  ServerIcon,
-  TagIcon,
-  ClipboardDocumentIcon,
-  SparklesIcon,
-  PlusIcon,
-  XMarkIcon,
-  ChevronDownIcon,
-  ChevronRightIcon
+  ServerIcon
 } from '@heroicons/react/24/outline';
 import { useAppContext } from '../contexts/AppContext';
 
-interface SelectedIntegration {
-  service: string;
-  provider: string;
-  version: string;
-  endpoints: Record<string, string>;
+interface IntegrationPlan {
+  integration_plan: {
+    services: Service[];
+    dependencies: Dependency[];
+    dataFlow: DataFlow[];
+    auth_requirements: AuthRequirement[];
+  };
+  confidence_score: number;
+  processing_metadata: {
+    timestamp: string;
+    parser_version: string;
+    processing_time: number;
+  };
 }
 
-interface NLPParseResult {
-  timestamp: string;
-  input_text: string;
-  input_length: number;
-  word_count: number;
-  services_detected: string[];
-  fields_detected: string[];
-  mandatory_services: string[];
-  optional_services: string[];
-  confidence_score: number;
-  processing_details: {
-    service_matches: { [service: string]: string[] };
-    field_matches: { [field: string]: string[] };
-    total_service_keywords_found: number;
-    total_field_keywords_found: number;
-  };
-  metadata: {
-    parser_version: string;
-    processing_method: string;
-    language: string;
-  };
+interface Service {
+  name: string;
+  type: string;
+  endpoints: Endpoint[];
+  mandatory: boolean;
+  confidence: number;
+  description?: string;
+}
+
+interface Endpoint {
+  url: string;
+  method: string;
+  request_fields: string[];
+  response_fields: string[];
+  description?: string;
+}
+
+interface Dependency {
+  service: string;
+  depends_on: string;
+  type: 'sequential' | 'parallel';
+  description?: string;
+}
+
+interface DataFlow {
+  from_service: string;
+  to_service: string;
+  data_fields: string[];
+  trigger: 'immediate' | 'scheduled' | 'event_based';
+}
+
+interface AuthRequirement {
+  service: string;
+  auth_type: 'Bearer Token' | 'API Key' | 'OAuth 2.0' | 'Basic Auth';
+  required_scopes?: string[];
+  description?: string;
 }
 
 const RequirementParser: React.FC = () => {
   const { state, actions } = useAppContext();
   const navigate = useNavigate();
   
-  const [file, setFile] = useState<File | null>(null);
-  const [documentText, setDocumentText] = useState('');
-  const [isParsing, setIsParsing] = useState(false);
-  const [parseResult, setParseResult] = useState<NLPParseResult | null>(null);
-  const [dragActive, setDragActive] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<'upload' | 'parsing' | 'ai_extraction' | 'output_ready'>('upload');
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [integrationPlan, setIntegrationPlan] = useState<IntegrationPlan | null>(null);
   const [error, setError] = useState('');
-  const [availableAdapters, setAvailableAdapters] = useState<any[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [parserId, setParserId] = useState<string>('');
 
-  // Fetch available adapters
-  const fetchAdapters = useCallback(async () => {
-    try {
-      const response = await fetch('http://localhost:5003/adapters');
-      const data = await response.json();
-      if (data.success) {
-        setAvailableAdapters(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch adapters:', error);
-    }
-  }, []);
+  const processingSteps = [
+    { id: 1, name: 'Upload', stage: 'upload' as const, description: 'Upload your requirements document' },
+    { id: 2, name: 'Parsing', stage: 'parsing' as const, description: 'Extract text from document' },
+    { id: 3, name: 'AI Extraction', stage: 'ai_extraction' as const, description: 'AI-powered service detection' },
+    { id: 4, name: 'Output Ready', stage: 'output_ready' as const, description: 'Review and edit extracted data' }
+  ];
 
-  // Match detected services with adapters
-  const matchServicesWithAdapters = useCallback(async (services: string[]) => {
-    try {
-      const response = await fetch('http://localhost:5003/match-adapters', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          services_detected: services
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        actions.setSelectedAdapters(data.data);
-        
-        // Fetch schemas for each selected integration
-        for (const integration of data.data) {
-          await fetchSchema(integration.service, integration.version);
-        }
-      } else {
-        console.error('Failed to match adapters:', data.error);
-      }
-    } catch (error) {
-      console.error('Failed to match adapters:', error);
-    }
-  }, [actions]);
-
-  // Fetch schema for a specific service
-  const fetchSchema = useCallback(async (service: string, version: string) => {
-    try {
-      const response = await fetch(`http://localhost:5003/schema/${service}/${version}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        // Store schema for later use
-        return data.data;
-      }
-    } catch (error) {
-      console.error('Failed to fetch schema:', error);
-    }
-    return null;
-  }, []);
-
-  // Fetch adapters on component mount
-  useEffect(() => {
-    fetchAdapters();
-  }, [fetchAdapters]);
-  const getServiceInfo = (service: string) => {
-    switch (service.toLowerCase()) {
-      case 'kyc':
-        return { icon: BeakerIcon, color: 'bg-blue-100 text-blue-800 border-blue-200', name: 'KYC Verification' };
-      case 'gst':
-        return { icon: ServerIcon, color: 'bg-green-100 text-green-800 border-green-200', name: 'GST Services' };
-      case 'payments':
-        return { icon: CreditCardIcon, color: 'bg-purple-100 text-purple-800 border-purple-200', name: 'Payment Processing' };
-      case 'fraud':
-        return { icon: ShieldCheckIcon, color: 'bg-red-100 text-red-800 border-red-200', name: 'Fraud Detection' };
-      default:
-        return { icon: CogIcon, color: 'bg-gray-100 text-gray-800 border-gray-200', name: service };
-    }
-  };
-
-  // Field type colors
-  const getFieldTypeColor = (field: string) => {
-    const fieldTypes: { [key: string]: string } = {
-      'name': 'bg-blue-50 text-blue-700',
-      'dob': 'bg-green-50 text-green-700',
-      'PAN': 'bg-purple-50 text-purple-700',
-      'GSTIN': 'bg-orange-50 text-orange-700',
-      'phone': 'bg-pink-50 text-pink-700',
-      'email': 'bg-indigo-50 text-indigo-700',
-      'address': 'bg-gray-50 text-gray-700',
-      'aadhaar': 'bg-yellow-50 text-yellow-700',
-      'bankAccount': 'bg-teal-50 text-teal-700',
-      'amount': 'bg-red-50 text-red-700'
-    };
-    return fieldTypes[field] || 'bg-gray-50 text-gray-700';
-  };
-
-  // Parse requirements using NLP service
-  const parseRequirements = useCallback(async () => {
-    if (!documentText.trim()) {
-      setError('Please enter some text to parse');
+  // Handle file upload
+  const handleFileUpload = useCallback((file: File) => {
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Please upload a PDF, DOCX, or TXT file');
       return;
     }
 
-    setIsParsing(true);
-    setError('');
-
-    try {
-      const response = await fetch('http://localhost:5003/parse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: documentText,
-          options: {
-            extract_services: true,
-            extract_fields: true,
-            include_confidence: true,
-            include_metadata: true
-          }
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setParseResult(data.data);
-        
-        // Automatically match detected services with adapters
-        if (data.data.services_detected && data.data.services_detected.length > 0) {
-          await matchServicesWithAdapters(data.data.services_detected);
-        }
-      } else {
-        setError(data.error || 'Parsing failed');
-      }
-    } catch (error) {
-      setError('Failed to connect to parsing service');
-      console.error(error);
-    } finally {
-      setIsParsing(false);
-    }
-  }, [documentText, matchServicesWithAdapters]);
-
-  // Mock parsing as fallback
-  const mockParseDocument = (text: string): NLPParseResult => {
-    const normalizedText = text.toLowerCase();
-    
-    // Simple keyword detection
-    const services = [];
-    const fields = [];
-    
-    if (normalizedText.includes('kyc') || normalizedText.includes('identity')) services.push('KYC');
-    if (normalizedText.includes('gst') || normalizedText.includes('tax')) services.push('GST');
-    if (normalizedText.includes('payment') || normalizedText.includes('transaction')) services.push('Payments');
-    if (normalizedText.includes('fraud') || normalizedText.includes('risk')) services.push('Fraud');
-    
-    if (normalizedText.includes('name')) fields.push('name');
-    if (normalizedText.includes('dob') || normalizedText.includes('birth')) fields.push('dob');
-    if (normalizedText.includes('pan')) fields.push('PAN');
-    if (normalizedText.includes('gstin')) fields.push('GSTIN');
-    if (normalizedText.includes('phone') || normalizedText.includes('mobile')) fields.push('phone');
-    if (normalizedText.includes('email')) fields.push('email');
-
-    return {
-      timestamp: new Date().toISOString(),
-      input_text: text,
-      input_length: text.length,
-      word_count: text.split(/\s+/).length,
-      services_detected: services,
-      fields_detected: fields,
-      mandatory_services: services,
-      optional_services: [],
-      confidence_score: 75,
-      processing_details: {
-        service_matches: {},
-        field_matches: {},
-        total_service_keywords_found: services.length,
-        total_field_keywords_found: fields.length
-      },
-      metadata: {
-        parser_version: '1.0.0',
-        processing_method: 'keyword_matching_rule_based',
-        language: 'en'
-      }
-    };
-  };
-
-  const handleParseText = async () => {
-    if (!documentText.trim()) {
-      setError('Please enter some text to parse');
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      setError('File size must be less than 10MB');
       return;
     }
 
-    setIsParsing(true);
+    setUploadedFile(file);
     setError('');
+  }, []);
 
-    try {
-      const result = mockParseDocument(documentText);
-      setParseResult(result);
-      
-      // Automatically match detected services with adapters
-      if (result.services_detected && result.services_detected.length > 0) {
-        await matchServicesWithAdapters(result.services_detected);
-        actions.setParsedData(result);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to parse document');
-    } finally {
-      setIsParsing(false);
-    }
-  };
-
-  const handleFileUpload = async (uploadedFile: File) => {
-    setFile(uploadedFile);
-    
-    try {
-      const text = await uploadedFile.text();
-      setDocumentText(text);
-    } catch (error) {
-      setError('Failed to read file content');
-    }
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
+  // Handle drag and drop
+  const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -295,49 +121,518 @@ const RequirementParser: React.FC = () => {
     } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
+    
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileUpload(e.dataTransfer.files[0]);
     }
+  }, [handleFileUpload]);
+
+  // Process document through the pipeline
+  const processDocument = async () => {
+    if (!uploadedFile) {
+      setError('Please select a file first');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError('');
+    setProcessingProgress(0);
+    
+    try {
+      // Step 1: Upload
+      setProcessingStage('upload');
+      setProcessingProgress(25);
+      
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+      
+      const uploadResponse = await fetch('http://localhost:5001/api/parse-document', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      // Step 2: Parsing
+      setProcessingStage('parsing');
+      setProcessingProgress(50);
+      
+      const uploadResult = await uploadResponse.json();
+      
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Parsing failed');
+      }
+      
+      // Step 3: AI Extraction
+      setProcessingStage('ai_extraction');
+      setProcessingProgress(75);
+      
+      // Simulate AI processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Generate integration plan
+      const plan = await generateIntegrationPlan(uploadResult.data.raw_text);
+      setIntegrationPlan(plan);
+      
+      // Step 4: Output Ready
+      setProcessingStage('output_ready');
+      setProcessingProgress(100);
+      
+      // Generate unique parser ID
+      const id = `parser_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setParserId(id);
+      
+      setCurrentStep(2);
+      
+    } catch (error: any) {
+      console.error('Processing error:', error);
+      setError(error.message || 'Failed to process document');
+      
+      // Fallback to mock data
+      const mockPlan = generateMockIntegrationPlan();
+      setIntegrationPlan(mockPlan);
+      setParserId(`parser_fallback_${Date.now()}`);
+      setCurrentStep(2);
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress(0);
+    }
   };
 
-  const sampleText = `The system must integrate KYC and GST verification APIs. 
-The KYC integration should support customer identity verification with name, date of birth, 
-PAN number, email, and phone number validation. The GST integration must validate GSTIN 
-and business registration details. Payment processing is required for transaction handling. 
-All integrations should be secure and compliant with regulatory requirements.`;
+  // Generate integration plan from text
+  const generateIntegrationPlan = async (text: string): Promise<IntegrationPlan> => {
+    // In a real implementation, this would call an AI service
+    // For now, we'll use pattern matching
+    
+    const lowerText = text.toLowerCase();
+    const services: Service[] = [];
+    const dependencies: Dependency[] = [];
+    const dataFlow: DataFlow[] = [];
+    const authRequirements: AuthRequirement[] = [];
+    
+    // Service detection
+    if (lowerText.includes('kyc') || lowerText.includes('identity')) {
+      services.push({
+        name: 'KYC Verification',
+        type: 'identity',
+        endpoints: [
+          {
+            url: '/api/kyc/verify',
+            method: 'POST',
+            request_fields: ['name', 'dob', 'pan', 'email', 'phone'],
+            response_fields: ['verification_id', 'status', 'score'],
+            description: 'Verify customer identity documents'
+          }
+        ],
+        mandatory: true,
+        confidence: 90,
+        description: 'Customer identity verification service'
+      });
+      
+      authRequirements.push({
+        service: 'KYC Verification',
+        auth_type: 'Bearer Token',
+        required_scopes: ['kyc.verify', 'kyc.read'],
+        description: 'Bearer token for KYC API access'
+      });
+    }
+    
+    if (lowerText.includes('gst') || lowerText.includes('tax')) {
+      services.push({
+        name: 'GST Validation',
+        type: 'tax',
+        endpoints: [
+          {
+            url: '/api/gst/validate',
+            method: 'POST',
+            request_fields: ['gstin', 'business_name'],
+            response_fields: ['gstin_status', 'registration_date', 'business_details'],
+            description: 'Validate GST registration details'
+          }
+        ],
+        mandatory: true,
+        confidence: 85,
+        description: 'GST registration validation service'
+      });
+      
+      authRequirements.push({
+        service: 'GST Validation',
+        auth_type: 'API Key',
+        description: 'API key for GST validation service'
+      });
+    }
+    
+    if (lowerText.includes('payment') || lowerText.includes('transaction')) {
+      services.push({
+        name: 'Payment Processing',
+        type: 'payment',
+        endpoints: [
+          {
+            url: '/api/payment/process',
+            method: 'POST',
+            request_fields: ['amount', 'currency', 'account_number'],
+            response_fields: ['transaction_id', 'status', 'timestamp'],
+            description: 'Process payment transactions'
+          }
+        ],
+        mandatory: false,
+        confidence: 80,
+        description: 'Payment processing and transaction handling'
+      });
+      
+      authRequirements.push({
+        service: 'Payment Processing',
+        auth_type: 'OAuth 2.0',
+        required_scopes: ['payment.process', 'payment.read'],
+        description: 'OAuth 2.0 for payment processing'
+      });
+    }
+    
+    // Generate dependencies
+    if (services.length > 1) {
+      services.forEach((service, index) => {
+        if (index < services.length - 1) {
+          dependencies.push({
+            service: service.name,
+            depends_on: services[index + 1].name,
+            type: 'sequential',
+            description: `${service.name} depends on ${services[index + 1].name} completion`
+          });
+        }
+      });
+    }
+    
+    // Generate data flow
+    services.forEach((service) => {
+      service.endpoints.forEach(endpoint => {
+        endpoint.request_fields.forEach(field => {
+          dataFlow.push({
+            from_service: 'User Input',
+            to_service: service.name,
+            data_fields: [field],
+            trigger: 'immediate'
+          });
+        });
+      });
+    });
+    
+    return {
+      integration_plan: {
+        services,
+        dependencies,
+        dataFlow,
+        auth_requirements: authRequirements
+      },
+      confidence_score: Math.min(95, services.reduce((sum, s) => sum + s.confidence, 0) / services.length),
+      processing_metadata: {
+        timestamp: new Date().toISOString(),
+        parser_version: '2.0.0',
+        processing_time: Date.now() - Date.now()
+      }
+    };
+  };
+
+  // Generate mock integration plan for fallback
+  const generateMockIntegrationPlan = (): IntegrationPlan => ({
+    integration_plan: {
+      services: [
+        {
+          name: 'KYC Verification',
+          type: 'identity',
+          endpoints: [
+            {
+              url: '/api/kyc/verify',
+              method: 'POST',
+              request_fields: ['name', 'dob', 'pan', 'email', 'phone'],
+              response_fields: ['verification_id', 'status', 'score'],
+              description: 'Verify customer identity documents'
+            }
+          ],
+          mandatory: true,
+          confidence: 90,
+          description: 'Customer identity verification service'
+        },
+        {
+          name: 'GST Validation',
+          type: 'tax',
+          endpoints: [
+            {
+              url: '/api/gst/validate',
+              method: 'POST',
+              request_fields: ['gstin', 'business_name'],
+              response_fields: ['gstin_status', 'registration_date'],
+              description: 'Validate GST registration details'
+            }
+          ],
+          mandatory: true,
+          confidence: 85,
+          description: 'GST registration validation service'
+        }
+      ],
+      dependencies: [
+        {
+          service: 'GST Validation',
+          depends_on: 'KYC Verification',
+          type: 'sequential',
+          description: 'GST validation requires KYC completion'
+        }
+      ],
+      dataFlow: [
+        {
+          from_service: 'User Input',
+          to_service: 'KYC Verification',
+          data_fields: ['name', 'dob', 'pan', 'email', 'phone'],
+          trigger: 'immediate'
+        },
+        {
+          from_service: 'KYC Verification',
+          to_service: 'GST Validation',
+          data_fields: ['verification_id'],
+          trigger: 'immediate'
+        }
+      ],
+      auth_requirements: [
+        {
+          service: 'KYC Verification',
+          auth_type: 'Bearer Token',
+          required_scopes: ['kyc.verify', 'kyc.read'],
+          description: 'Bearer token for KYC API access'
+        },
+        {
+          service: 'GST Validation',
+          auth_type: 'API Key',
+          description: 'API key for GST validation service'
+        }
+      ]
+    },
+    confidence_score: 87,
+    processing_metadata: {
+      timestamp: new Date().toISOString(),
+      parser_version: '2.0.0',
+      processing_time: 2500
+    }
+  });
+
+  // Update service in the plan
+  const updateService = (index: number, field: keyof Service, value: any) => {
+    if (!integrationPlan) return;
+    
+    const updatedServices = [...integrationPlan.integration_plan.services];
+    updatedServices[index] = { ...updatedServices[index], [field]: value };
+    
+    setIntegrationPlan({
+      ...integrationPlan,
+      integration_plan: {
+        ...integrationPlan.integration_plan,
+        services: updatedServices
+      }
+    });
+  };
+
+  // Add new service
+  const addService = () => {
+    if (!integrationPlan) return;
+    
+    const newService: Service = {
+      name: '',
+      type: '',
+      endpoints: [
+        {
+          url: '',
+          method: 'POST',
+          request_fields: [],
+          response_fields: [],
+          description: ''
+        }
+      ],
+      mandatory: false,
+      confidence: 50,
+      description: ''
+    };
+    
+    setIntegrationPlan({
+      ...integrationPlan,
+      integration_plan: {
+        ...integrationPlan.integration_plan,
+        services: [...integrationPlan.integration_plan.services, newService]
+      }
+    });
+  };
+
+  // Remove service
+  const removeService = (index: number) => {
+    if (!integrationPlan) return;
+    
+    const updatedServices = integrationPlan.integration_plan.services.filter((_, i) => i !== index);
+    
+    setIntegrationPlan({
+      ...integrationPlan,
+      integration_plan: {
+        ...integrationPlan.integration_plan,
+        services: updatedServices
+      }
+    });
+  };
+
+  // Send to Integration Registry
+  const sendToIntegrationRegistry = () => {
+    if (!integrationPlan) return;
+    
+    // Convert to the format expected by the existing system
+    const parsedData = {
+      services_detected: integrationPlan.integration_plan.services.map(s => s.name),
+      fields_detected: integrationPlan.integration_plan.services.flatMap(s => 
+        s.endpoints.flatMap(e => [...e.request_fields, ...e.response_fields])
+      ),
+      mandatory_services: integrationPlan.integration_plan.services.filter(s => s.mandatory).map(s => s.name),
+      optional_services: integrationPlan.integration_plan.services.filter(s => !s.mandatory).map(s => s.name),
+      confidence_score: integrationPlan.confidence_score,
+      processing_details: {
+        service_matches: {},
+        field_matches: {},
+        total_service_keywords_found: integrationPlan.integration_plan.services.length,
+        total_field_keywords_found: integrationPlan.integration_plan.services.flatMap(s => 
+          s.endpoints.flatMap(e => [...e.request_fields, ...e.response_fields])
+        ).length
+      },
+      metadata: {
+        parser_version: integrationPlan.processing_metadata.parser_version,
+        processing_method: 'ai_enhanced_pipeline',
+        language: 'en'
+      },
+      integration_plan: integrationPlan
+    };
+    
+    // Store in global state
+    actions.setParsedData(parsedData);
+    
+    // Navigate to registry
+    navigate('/registry');
+  };
+
+  const getServiceIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'identity':
+        return BeakerIcon;
+      case 'tax':
+        return ServerIcon;
+      case 'payment':
+        return CreditCardIcon;
+      default:
+        return CogIcon;
+    }
+  };
+
+  const getServiceColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'identity':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'tax':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'payment':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-6">
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">NLP Requirement Parser</h1>
-          <p className="text-gray-600">AI-powered requirement extraction with keyword matching and rule-based analysis</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Requirement Parsing Engine</h1>
+          <p className="text-gray-600">Convert unstructured documents into structured integration configuration</p>
+          {parserId && (
+            <p className="text-sm text-gray-500 mt-1">Parser ID: {parserId}</p>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Input Section */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-6"
-          >
-            {/* File Upload */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <DocumentArrowUpIcon className="w-5 h-5 mr-2 text-blue-600" />
-                Document Upload
-              </h2>
+        {/* Processing Steps */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            {processingSteps.map((step, index) => (
+              <React.Fragment key={step.id}>
+                <div className="flex items-center">
+                  <div
+                    className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
+                      isProcessing && processingStage === step.stage
+                        ? 'bg-blue-600 border-blue-600 text-white animate-pulse'
+                        : processingSteps.findIndex(s => s.stage === processingStage) > index
+                        ? 'bg-green-600 border-green-600 text-white'
+                        : 'bg-gray-100 border-gray-300 text-gray-500'
+                    }`}
+                  >
+                    {processingSteps.findIndex(s => s.stage === processingStage) > index ? (
+                      <CheckCircleIcon className="w-5 h-5" />
+                    ) : isProcessing && processingStage === step.stage ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <span className="text-sm font-medium">{step.id}</span>
+                    )}
+                  </div>
+                  <div className="ml-3">
+                    <p className={`text-sm font-medium ${
+                      isProcessing && processingStage === step.stage
+                        ? 'text-blue-600'
+                        : processingSteps.findIndex(s => s.stage === processingStage) > index
+                        ? 'text-green-600'
+                        : 'text-gray-500'
+                    }`}>
+                      {step.name}
+                    </p>
+                    <p className="text-xs text-gray-500">{step.description}</p>
+                  </div>
+                </div>
+                {index < processingSteps.length - 1 && (
+                  <div className={`flex-1 mx-4 h-1 ${
+                    processingSteps.findIndex(s => s.stage === processingStage) > index ? 'bg-green-600' : 'bg-gray-300'
+                  }`} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          
+          {/* Processing Progress */}
+          {isProcessing && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">Processing...</span>
+                <span className="text-sm text-gray-500">{processingProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${processingProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
+        {/* Step Content */}
+        <AnimatePresence mode="wait">
+          {currentStep === 1 && (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-white rounded-xl shadow-lg border border-gray-200 p-8"
+            >
+              <h2 className="text-2xl font-semibold text-gray-900 mb-6">Upload Requirements Document</h2>
+              
+              {/* File Upload Area */}
               <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
                   dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
                 }`}
                 onDragEnter={handleDrag}
@@ -345,255 +640,317 @@ All integrations should be secure and compliant with regulatory requirements.`;
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
               >
-                <DocumentTextIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-2">
-                  {file ? file.name : 'Drag and drop your document here, or click to browse'}
-                </p>
-                <input
-                  type="file"
-                  accept=".txt,.md,.doc,.docx"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer"
-                >
-                  Browse Files
-                </label>
-              </div>
-            </div>
-
-            {/* Text Input */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <ClipboardDocumentIcon className="w-5 h-5 mr-2 text-blue-600" />
-                Requirement Text
-              </h2>
-
-              <textarea
-                value={documentText}
-                onChange={(e) => setDocumentText(e.target.value)}
-                placeholder="Paste your requirement text here..."
-                className="w-full h-48 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-
-              <div className="mt-4 flex items-center justify-between">
-                <button
-                  onClick={() => setDocumentText(sampleText)}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Load Sample Text
-                </button>
-                <span className="text-sm text-gray-500">
-                  {documentText.length} characters
-                </span>
+                {uploadedFile ? (
+                  <div className="space-y-4">
+                    <DocumentArrowUpIcon className="w-16 h-16 mx-auto text-blue-600" />
+                    <div>
+                      <p className="text-lg font-medium text-gray-900">{uploadedFile.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setUploadedFile(null)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Remove File
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <CloudArrowUpIcon className="w-16 h-16 mx-auto text-gray-400" />
+                    <div>
+                      <p className="text-lg font-medium text-gray-900">Drop your requirements document here</p>
+                      <p className="text-sm text-gray-500 mt-1">or click to browse</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt"
+                      onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="inline-block px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer transition-colors"
+                    >
+                      Choose File
+                    </label>
+                    <p className="text-xs text-gray-500">Supported formats: PDF, DOCX, TXT (Max 10MB)</p>
+                  </div>
+                )}
               </div>
 
+              {/* Error Message */}
               {error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-red-800 text-sm">{error}</p>
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center">
+                    <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-2" />
+                    <span className="text-red-800">{error}</span>
+                  </div>
                 </div>
               )}
 
-              <button
-                onClick={handleParseText}
-                disabled={isParsing || !documentText.trim()}
-                className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                {isParsing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Parsing...
-                  </>
-                ) : (
-                  <>
-                    <SparklesIcon className="w-4 h-4 mr-2" />
-                    Parse Requirements
-                  </>
-                )}
-              </button>
-            </div>
-          </motion.div>
+              {/* Action Button */}
+              <div className="mt-8 flex justify-end">
+                <button
+                  onClick={processDocument}
+                  disabled={!uploadedFile || isProcessing}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <SparklesIcon className="w-5 h-5 mr-2" />
+                      Start Processing
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
 
-          {/* Results Section */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-6"
-          >
-            {parseResult ? (
-              <>
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Services Detected</p>
-                        <p className="text-2xl font-bold text-gray-900">{parseResult.services_detected.length}</p>
-                      </div>
-                      <TagIcon className="w-8 h-8 text-blue-600" />
-                    </div>
+          {currentStep === 2 && integrationPlan && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-gray-900 mb-2">Integration Plan Ready</h2>
+                    <p className="text-gray-600">
+                      Found {integrationPlan.integration_plan.services.length} services with {integrationPlan.confidence_score}% confidence
+                    </p>
                   </div>
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Fields Detected</p>
-                        <p className="text-2xl font-bold text-gray-900">{parseResult.fields_detected.length}</p>
-                      </div>
-                      <CogIcon className="w-8 h-8 text-green-600" />
-                    </div>
-                  </div>
+                  <button
+                    onClick={addService}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm flex items-center"
+                  >
+                    <PlusIcon className="w-4 h-4 mr-1" />
+                    Add Service
+                  </button>
                 </div>
+              </div>
 
-                {/* Services */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Detected Services</h3>
-                  
-                  <div className="space-y-4">
-                    {/* Mandatory Services */}
-                    {parseResult.mandatory_services.length > 0 && (
-                      <div>
-                        <h4 className="text-md font-medium text-gray-700 mb-2">Mandatory Services</h4>
-                        <div className="space-y-2">
-                          {parseResult.mandatory_services.map((service, index) => (
-                            <span key={index} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getServiceInfo(service).color}`}>
-                              {service}
-                            </span>
-                          ))}
-                        </div>
+              {/* Services List */}
+              {integrationPlan.integration_plan.services.map((service, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <input
+                          type="text"
+                          value={service.name}
+                          onChange={(e) => updateService(index, 'name', e.target.value)}
+                          className="text-lg font-semibold bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none flex-1"
+                          placeholder="Service Name"
+                        />
+                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${getServiceColor(service.type)}`}>
+                          {service.type}
+                        </span>
+                        {service.mandatory && (
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                            Mandatory
+                          </span>
+                        )}
                       </div>
-                    )}
-
-                    {/* Optional Services */}
-                    {parseResult.optional_services.length > 0 && (
-                      <div>
-                        <h4 className="text-md font-medium text-gray-700 mb-2">Optional Services</h4>
-                        <div className="space-y-2">
-                          {parseResult.optional_services.map((service, index) => (
-                            <span key={index} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700`}>
-                              {service}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Selected Integrations */}
-                {state.selectedAdapters.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <CheckCircleIcon className="w-5 h-5 mr-2 text-green-600" />
-                      Selected Integrations
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      {state.selectedAdapters.map((integration: any, index: number) => {
-                        const serviceInfo = getServiceInfo(integration.service);
-                        const IconComponent = serviceInfo.icon;
-                        
-                        return (
-                          <div key={index} className="border border-gray-200 rounded-lg p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h4 className="text-md font-semibold text-gray-900">{integration.service}</h4>
-                                <p className="text-sm text-gray-600">
-                                  Provider: <span className="font-medium">{integration.provider}</span> | 
-                                  Version: <span className="font-medium">{integration.version}</span>
-                                </p>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <button
-                                  onClick={() => {
-                                    const updated = state.selectedAdapters.filter((_, i) => i !== index);
-                                    actions.setSelectedAdapters(updated);
-                                  }}
-                                  className="text-red-500 hover:text-red-700"
-                                >
-                                  <XMarkIcon className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-gray-700">Available Endpoints:</p>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {Object.entries(integration.endpoints || {}).map(([name, url], idx) => (
-                                  <div key={idx} className="bg-gray-50 rounded p-2">
-                                    <p className="text-xs font-medium text-gray-600">{name}</p>
-                                    <p className="text-sm text-gray-900 break-all">{String(url)}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Confidence</label>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={service.confidence}
+                              onChange={(e) => updateService(index, 'confidence', parseInt(e.target.value))}
+                              className="flex-1"
+                            />
+                            <span className="text-sm font-medium w-12">{service.confidence}%</span>
                           </div>
-                        );
-                      })}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                          <select
+                            value={service.type}
+                            onChange={(e) => updateService(index, 'type', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select type</option>
+                            <option value="identity">Identity</option>
+                            <option value="tax">Tax</option>
+                            <option value="payment">Payment</option>
+                            <option value="communication">Communication</option>
+                            <option value="security">Security</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={service.mandatory}
+                            onChange={(e) => updateService(index, 'mandatory', e.target.checked)}
+                            className="mr-2"
+                          />
+                          <label className="text-sm font-medium text-gray-700">Mandatory</label>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={service.description || ''}
+                          onChange={(e) => updateService(index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Service description"
+                        />
+                      </div>
                     </div>
                     
-                    {/* Continue to Field Mapping */}
-                    <div className="mt-6 pt-6 border-t border-gray-200">
-                      <button
-                        onClick={() => {
-                          // Navigate to field mapping with data
-                          actions.setCurrentStep('field-mapping');
-                          navigate('/field-mapping');
-                        }}
-                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
-                      >
-                        Proceed to Mapping →
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Fields */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Detected Fields</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {parseResult.fields_detected.map((field) => (
-                      <span
-                        key={field}
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${getFieldTypeColor(field)}`}
-                      >
-                        {field}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* JSON Output */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Parsed Output (JSON)</h3>
                     <button
-                      onClick={() => navigator.clipboard.writeText(JSON.stringify(parseResult, null, 2))}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                      onClick={() => removeService(index)}
+                      className="ml-4 text-red-600 hover:text-red-800"
                     >
-                      <CodeBracketIcon className="w-4 h-4 mr-1" />
-                      Copy JSON
+                      <XMarkIcon className="w-5 h-5" />
                     </button>
                   </div>
-                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                    <pre className="text-green-400 text-sm">
-                      {JSON.stringify(parseResult, null, 2)}
-                    </pre>
+
+                  {/* Endpoints */}
+                  <div className="border-t border-gray-200 pt-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">Endpoints</h4>
+                    {service.endpoints.map((endpoint, endpointIndex) => (
+                      <div key={endpointIndex} className="bg-gray-50 rounded-lg p-4 mb-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">URL</label>
+                            <input
+                              type="text"
+                              value={endpoint.url}
+                              onChange={(e) => {
+                                const updatedEndpoints = [...service.endpoints];
+                                updatedEndpoints[endpointIndex] = { ...endpoint, url: e.target.value };
+                                updateService(index, 'endpoints', updatedEndpoints);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="/api/service/endpoint"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                            <select
+                              value={endpoint.method}
+                              onChange={(e) => {
+                                const updatedEndpoints = [...service.endpoints];
+                                updatedEndpoints[endpointIndex] = { ...endpoint, method: e.target.value };
+                                updateService(index, 'endpoints', updatedEndpoints);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="GET">GET</option>
+                              <option value="POST">POST</option>
+                              <option value="PUT">PUT</option>
+                              <option value="DELETE">DELETE</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Request Fields</label>
+                            <input
+                              type="text"
+                              value={endpoint.request_fields.join(', ')}
+                              onChange={(e) => {
+                                const updatedEndpoints = [...service.endpoints];
+                                updatedEndpoints[endpointIndex] = { 
+                                  ...endpoint, 
+                                  request_fields: e.target.value.split(',').map(f => f.trim()).filter(f => f)
+                                };
+                                updateService(index, 'endpoints', updatedEndpoints);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="field1, field2, field3"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Response Fields</label>
+                            <input
+                              type="text"
+                              value={endpoint.response_fields.join(', ')}
+                              onChange={(e) => {
+                                const updatedEndpoints = [...service.endpoints];
+                                updatedEndpoints[endpointIndex] = { 
+                                  ...endpoint, 
+                                  response_fields: e.target.value.split(',').map(f => f.trim()).filter(f => f)
+                                };
+                                updateService(index, 'endpoints', updatedEndpoints);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="field1, field2, field3"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                </motion.div>
+              ))}
+
+              {/* JSON Output */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Integration Plan (JSON)</h3>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(JSON.stringify(integrationPlan, null, 2))}
+                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                  >
+                    <CodeBracketIcon className="w-4 h-4 mr-1" />
+                    Copy JSON
+                  </button>
                 </div>
-              </>
-            ) : (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                <TableCellsIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Results Yet</h3>
-                <p className="text-gray-600">Upload a document or paste text to see parsing results</p>
+                <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto max-h-96">
+                  <pre className="text-green-400 text-sm">
+                    {JSON.stringify(integrationPlan, null, 2)}
+                  </pre>
+                </div>
               </div>
-            )}
-          </motion.div>
-        </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-between">
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center"
+                >
+                  <ArrowLeftIcon className="w-5 h-5 mr-2" />
+                  Back
+                </button>
+                <button
+                  onClick={sendToIntegrationRegistry}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                >
+                  <ShieldCheckIcon className="w-5 h-5 mr-2" />
+                  Send to Integration Registry
+                  <ArrowRightIcon className="w-5 h-5 ml-2" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

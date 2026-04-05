@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from './components/Navbar';
 import ProgressIndicator from './components/ProgressIndicator';
+import CreateIntegration from './pages/CreateIntegration';
+import RequirementParser from './pages/RequirementParser';
 import Upload from './pages/Upload';
 import Dashboard from './pages/Dashboard';
 import Builder from './pages/Builder';
@@ -44,7 +46,9 @@ const AppContent: React.FC = () => {
                 transition={{ duration: 0.5 }}
               >
               <Routes>
-                <Route path="/" element={<Upload />} />
+                <Route path="/" element={<RequirementParser />} />
+                <Route path="/parser" element={<RequirementParser />} />
+                <Route path="/create" element={<CreateIntegration />} />
                 <Route path="/upload" element={<Upload />} />
                 <Route 
                   path="/dashboard" 
