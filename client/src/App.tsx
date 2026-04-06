@@ -3,21 +3,18 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from './components/Navbar';
 import ProgressIndicator from './components/ProgressIndicator';
-import CreateIntegration from './pages/CreateIntegration';
+import WorkflowContainer from './pages/WorkflowContainer';
 import RequirementParser from './pages/RequirementParser';
 import Dashboard from './pages/Dashboard';
-import Builder from './pages/Builder';
-import Simulation from './pages/Simulation';
 import SimulationPage from './pages/SimulationPage';
 import AuditLogs from './pages/AuditLogs';
 import AdapterRegistry from './pages/AdapterRegistry';
-import FieldMapping from './pages/FieldMapping';
 import FieldMappingEnhanced from './pages/FieldMappingEnhanced';
 import Config from './pages/Config';
 import MultiTenantDashboard from './pages/MultiTenantDashboard';
-import EnhancedSimulation from './pages/EnhancedSimulation';
-import SecurityAuditDashboard from './pages/SecurityAuditDashboard';
 import BusinessImpactDashboard from './pages/BusinessImpactDashboard';
+import IntegrationRegistry from './pages/IntegrationRegistry';
+import FinalOutput from './pages/FinalOutput';
 import TenantProvider from './contexts/MultiTenantContext';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 
@@ -45,16 +42,14 @@ const AppContent: React.FC = () => {
                 transition={{ duration: 0.5 }}
               >
               <Routes>
-                <Route path="/" element={<RequirementParser />} />
+                <Route path="/" element={<WorkflowContainer />} />
+                <Route path="/workflow" element={<WorkflowContainer />} />
                 <Route path="/parser" element={<RequirementParser />} />
-                <Route path="/create" element={<CreateIntegration />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/registry" element={<AdapterRegistry />} />
-                <Route path="/mapping" element={<FieldMapping />} />
                 <Route path="/field-mapping" element={<FieldMappingEnhanced />} />
                 <Route path="/config" element={<Config />} />
                 <Route path="/tenants" element={<MultiTenantDashboard />} />
-                <Route path="/builder" element={<Builder services={[]} onConfigGenerated={() => {}} onNext={() => {}} />} />
                 <Route path="/business" element={<BusinessImpactDashboard />} />
                 <Route 
                   path="/audit" 
@@ -62,7 +57,7 @@ const AppContent: React.FC = () => {
                 />
                 <Route 
                   path="/simulation-engine" 
-                  element={<Simulation configs={[]} onNext={() => {}} />} 
+                  element={<SimulationPage onNext={() => {}} />} 
                 />
               </Routes>
               </motion.div>

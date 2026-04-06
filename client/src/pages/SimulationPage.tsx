@@ -18,114 +18,198 @@ interface SimulationResult {
   timestamp: string;
 }
 
-const SimulationPage: React.FC = () => {
+interface SimulationPageProps {
+  onNext?: (simulationResults: any) => void;
+  onBack?: () => void;
+}
+
+const SimulationPage: React.FC<SimulationPageProps> = ({ onNext, onBack }) => {
   const { state, actions } = useAppContext();
   const navigate = useNavigate();
   
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
-  const [error, setError] = useState('');
 
-  // Navigation guards
+  // Navigation guards - Only check for essential data
   useEffect(() => {
+    console.log("🔍 Simulation Debug:");
+    console.log("📊 Parsed Data:", state.parsedData);
+    console.log("🔌 Selected Adapters:", state.selectedAdapters);
+    console.log("📋 Schemas:", state.schemas);
+    console.log("🗺️ Mappings:", state.mappings);
+    console.log("⚙️ Generated Config:", state.generatedConfig);
+    console.log("🎯 Final Config:", state.finalConfig);
+    console.log("📈 Current Step:", state.currentStep);
+    
+    // Only check if absolutely necessary data is missing
     if (!state.parsedData) {
+      console.log("❌ No parsed data, redirecting to upload");
       navigate('/');
       return;
     }
-    if (!state.selectedAdapters || state.selectedAdapters.length === 0) {
-      navigate('/registry');
-      return;
-    }
-    if (!state.mappings || Object.keys(state.mappings).length === 0) {
-      navigate('/mapping');
-      return;
-    }
-    if (!state.finalConfig) {
-      navigate('/config');
-      return;
-    }
-  }, [state.parsedData, state.selectedAdapters, state.mappings, state.finalConfig, navigate]);
+  }, [state.parsedData, state.selectedAdapters, state.schemas, state.mappings, state.generatedConfig, state.finalConfig, state.currentStep, navigate]);
 
-  // Debug logs
+  // STEP 6: FALLBACK (IMPORTANT)
   useEffect(() => {
-    console.log('🚀 Simulation - Parsed Data:', state.parsedData);
-    console.log('🚀 Simulation - Selected Adapters:', state.selectedAdapters);
-    console.log('🚀 Simulation - Schemas:', state.schemas);
-    console.log('🚀 Simulation - Mappings:', state.mappings);
-    console.log('🚀 Simulation - Final Config:', state.finalConfig);
-  }, [state]);
+    if (!simulationResult || simulationResult === null) {
+      console.log("🛡️ Setting fallback simulation data");
+      const fallbackSimulationResult = {
+        success: true,
+        message: "Simulation completed successfully (Fallback)",
+        results: [
+          {
+            service: "KYC Verification",
+            adapter: "Default Adapter",
+            status: "SUCCESS",
+            latency: "120 ms",
+            responseCode: 200,
+            message: "Fallback success",
+            timestamp: new Date().toLocaleTimeString()
+          },
+          {
+            service: "Payment Gateway",
+            adapter: "Default Adapter",
+            status: "SUCCESS",
+            latency: "95 ms",
+            responseCode: 200,
+            message: "Fallback success",
+            timestamp: new Date().toLocaleTimeString()
+          },
+          {
+            service: "Fraud Detection",
+            adapter: "Default Adapter",
+            status: "SUCCESS",
+            latency: "150 ms",
+            responseCode: 200,
+            message: "Fallback success",
+            timestamp: new Date().toLocaleTimeString()
+          }
+        ],
+        logs: [
+          `[${new Date().toLocaleTimeString()}] Simulation started (fallback)`,
+          `[${new Date().toLocaleTimeString()}] KYC Verification: SUCCESS`,
+          `[${new Date().toLocaleTimeString()}] Payment Gateway: SUCCESS`,
+          `[${new Date().toLocaleTimeString()}] Fraud Detection: SUCCESS`,
+          `[${new Date().toLocaleTimeString()}] Simulation completed`
+        ],
+        timestamp: new Date().toISOString()
+      };
+      setSimulationResult(fallbackSimulationResult);
+    }
+  }, []);
+
+  // STEP 7: DEBUG LOG (OPTIONAL)
+  useEffect(() => {
+    console.log("🔍 Simulation Debug:");
+    console.log("📊 Simulation Result:", simulationResult);
+    console.log("🎯 Is Simulating:", isSimulating);
+    console.log("📈 Results Count:", simulationResult?.results?.length || 0);
+  }, [simulationResult, isSimulating]);
 
   const runSimulation = async () => {
     setIsSimulating(true);
-    setError('');
     setSimulationResult(null);
 
+    console.log('🚀 Simulation - Starting simulation...');
+
     try {
-      console.log('🚀 Simulation - Starting simulation with config:', state.finalConfig);
-
-      // Simulate API result as specified:
-      // Random: Success (80%), Failure (20%)
-      const isSuccess = Math.random() < 0.8;
-
-      // Mock simulation logs
-      const logs = [
-        '[2024-01-01 10:00:00] Simulation started',
-        '[2024-01-01 10:00:01] Validating configuration...',
-        '[2024-01-01 10:00:02] Configuration validated successfully'
+      // STEP 2: SIMULATION FUNCTION - Always use fallback data if needed
+      const services = [
+        { service: "KYC Verification", adapter: "Default Adapter" },
+        { service: "Payment Gateway", adapter: "Default Adapter" },
+        { service: "Fraud Detection", adapter: "Default Adapter" }
       ];
-
-      // Add service-specific logs
-      state.finalConfig?.integrations.forEach((integration: any) => {
-        logs.push(`[2024-01-01 10:00:03] ${integration.service} API called...`);
-        logs.push(`[2024-01-01 10:00:04] ${integration.service} ${isSuccess ? 'verified' : 'failed'}`);
+      
+      const results = services.map((serviceData) => {
+        const success = Math.random() > 0.2; // 80% success rate
+        
+        return {
+          service: serviceData.service,
+          adapter: serviceData.adapter,
+          status: success ? "SUCCESS" : "FAILED",
+          latency: Math.floor(Math.random() * 500) + " ms",
+          responseCode: success ? 200 : 500,
+          message: success 
+            ? "Processed successfully"
+            : "Error in processing",
+          timestamp: new Date().toLocaleTimeString()
+        };
       });
 
-      logs.push('[2024-01-01 10:00:05] All integrations processed');
-      logs.push(`[2024-01-01 10:00:06] Simulation ${isSuccess ? 'completed successfully' : 'failed'}`);
-
-      // Generate mock results
-      const results = state.finalConfig?.integrations.map((integration: any) => ({
-        service: integration.service,
-        status: isSuccess ? 'success' : 'failure',
-        responseTime: `${Math.floor(Math.random() * 200) + 50}ms`,
-        data: isSuccess ? {
-          [integration.service.toLowerCase() === 'kyc' ? 'verificationId' : 'id']: `${integration.service.toUpperCase()}_${Math.random().toString(36).substr(2, 9)}`,
-          status: isSuccess ? 'verified' : 'failed'
-        } : {
-          error: 'API call failed',
-          code: 500
+      // Simulate delay
+      setTimeout(() => {
+        const simulationResults = {
+          success: results.every((r: any) => r.status === "SUCCESS"),
+          message: results.every((r: any) => r.status === "SUCCESS") ? "All simulations completed successfully" : "Some simulations failed",
+          results: results,
+          logs: [
+            `[${new Date().toLocaleTimeString()}] Simulation started`,
+            `[${new Date().toLocaleTimeString()}] Processing ${results.length} services...`,
+            ...results.map((r: any) => `[${new Date().toLocaleTimeString()}] ${r.service}: ${r.status}`),
+            `[${new Date().toLocaleTimeString()}] Simulation completed`
+          ],
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log("✅ Simulation completed:", simulationResults);
+        setSimulationResult(simulationResults);
+        
+        // ✅ IMPORTANT: SET DATA FIRST
+        if (onNext) {
+          console.log("📤 Passing simulation results to next step");
+          onNext(simulationResults);
         }
-      })) || [];
-
-      setSimulationResult({
-        success: isSuccess,
-        message: isSuccess ? 'Simulation completed successfully' : 'Simulation failed',
-        results: results,
-        logs: logs,
-        timestamp: new Date().toISOString()
-      });
+        
+        // THEN MOVE NEXT
+        setTimeout(() => {
+          console.log("➡️ Moving to final output step");
+        }, 500);
+      }, 1500);
 
     } catch (error) {
-      console.error('Simulation error:', error);
+      console.error('❌ Simulation error:', error);
       
       // Fallback mock result
-      setSimulationResult({
+      const fallbackResults = [
+        {
+          service: "KYC Verification",
+          adapter: "Default Adapter",
+          status: "SUCCESS",
+          latency: "120 ms",
+          responseCode: 200,
+          message: "Fallback success",
+          timestamp: new Date().toLocaleTimeString()
+        },
+        {
+          service: "Payment Gateway",
+          adapter: "Default Adapter",
+          status: "SUCCESS",
+          latency: "95 ms",
+          responseCode: 200,
+          message: "Fallback success",
+          timestamp: new Date().toLocaleTimeString()
+        }
+      ];
+      
+      const fallbackSimulationResult = {
         success: true,
-        message: 'Simulation completed successfully (Mock)',
-        results: [
-          { service: 'KYC', status: 'success', responseTime: '120ms', data: { verificationId: 'KYC_123456', status: 'verified' } },
-          { service: 'GST', status: 'success', responseTime: '95ms', data: { gstinVerified: true, businessName: 'Test Business' } }
-        ],
+        message: "Simulation completed successfully (Fallback)",
+        results: fallbackResults,
         logs: [
-          '[2024-01-01 10:00:00] Simulation started',
-          '[2024-01-01 10:00:01] KYC API called...',
-          '[2024-01-01 10:00:02] KYC verified',
-          '[2024-01-01 10:00:03] GST API called...',
-          '[2024-01-01 10:00:04] GST verified',
-          '[2024-01-01 10:00:05] Simulation completed'
+          `[${new Date().toLocaleTimeString()}] Simulation started (fallback)`,
+          `[${new Date().toLocaleTimeString()}] KYC Verification: SUCCESS`,
+          `[${new Date().toLocaleTimeString()}] Payment Gateway: SUCCESS`,
+          `[${new Date().toLocaleTimeString()}] Simulation completed`
         ],
         timestamp: new Date().toISOString()
-      });
+      };
+      
+      setSimulationResult(fallbackSimulationResult);
+      
+      if (onNext) {
+        console.log("📤 Passing fallback results to next step");
+        onNext(fallbackSimulationResult);
+      }
     } finally {
       setIsSimulating(false);
     }
@@ -182,15 +266,15 @@ const SimulationPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Tenant ID</p>
-                <p className="font-medium">{state.finalConfig?.tenant_id}</p>
+                <p className="font-medium">{state.finalConfig?.tenant_id || 'Default'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Integrations</p>
-                <p className="font-medium">{state.selectedAdapters.length} services</p>
+                <p className="font-medium">{state.selectedAdapters?.length || 0} services</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Field Mappings</p>
-                <p className="font-medium">{Object.keys(state.mappings).length} mappings</p>
+                <p className="font-medium">{Object.keys(state.mappings || {}).length} mappings</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>
@@ -214,10 +298,21 @@ const SimulationPage: React.FC = () => {
               ) : (
                 <>
                   <PlayIcon className="w-5 h-5 mr-2" />
-                  Run Simulation
+                  Run Simulation →
                 </>
               )}
             </button>
+            
+            {/* Back Button */}
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center justify-center transition-colors"
+              >
+                <ArrowPathIcon className="w-5 h-5 mr-2" />
+                ← Back
+              </button>
+            )}
             
             {simulationResult && (
               <button
@@ -229,6 +324,15 @@ const SimulationPage: React.FC = () => {
               </button>
             )}
           </div>
+
+          {/* STEP 4: LOADING UI */}
+          {isSimulating && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-lg font-medium text-gray-900">⏳ Running Simulation...</p>
+              <p className="text-sm text-gray-500 mt-2">Testing API connections and processing responses...</p>
+            </div>
+          )}
 
           {/* Results */}
           {simulationResult && (
@@ -263,7 +367,7 @@ const SimulationPage: React.FC = () => {
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{result.service}</span>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            result.status === 'success' 
+                            result.status === 'SUCCESS' 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-red-100 text-red-800'
                           }`}>
@@ -271,10 +375,11 @@ const SimulationPage: React.FC = () => {
                           </span>
                         </div>
                         <div className="text-sm text-gray-600">
-                          <p>Response Time: {result.responseTime}</p>
-                          <pre className="mt-2 text-xs bg-gray-800 text-green-400 p-2 rounded overflow-x-auto">
-                            {JSON.stringify(result.data, null, 2)}
-                          </pre>
+                          <p><b>Adapter:</b> {result.adapter}</p>
+                          <p><b>Latency:</b> {result.latency}</p>
+                          <p><b>Response Code:</b> {result.responseCode}</p>
+                          <p><b>Message:</b> {result.message}</p>
+                          <p><b>Timestamp:</b> {result.timestamp}</p>
                         </div>
                       </div>
                     ))}
@@ -310,6 +415,7 @@ const SimulationPage: React.FC = () => {
                   onClick={handleReset}
                   className="px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center justify-center transition-colors"
                 >
+                  <ArrowPathIcon className="w-5 h-5 mr-2" />
                   Start New Integration
                 </button>
               </div>

@@ -73,13 +73,59 @@ const FieldMapping: React.FC<FieldMappingProps> = () => {
   const parsedFields = parsedData?.fields_detected || [];
   const servicesDetected = parsedData?.services_detected || [];
 
-  // Guard: Redirect to registry if no adapters selected
+  // STEP 3: ADD FALLBACK DATA (IMPORTANT)
   useEffect(() => {
     if (!selectedAdapters || selectedAdapters.length === 0) {
-      navigate('/registry');
-      return;
+      console.log("🛡️ Setting fallback selected adapters");
+      actions.setSelectedAdapters([
+        {
+          service: "KYC Verification",
+          provider: "Default Adapter",
+          version: "v1",
+          endpoints: {
+            "api": "https://api.default-adapter.com/v1",
+            "webhook": "https://webhook.default-adapter.com/v1"
+          },
+          requiredFields: ["customerId", "apiKey"],
+          optionalFields: ["metadata", "callback"],
+          authentication: {
+            type: "Bearer",
+            header: "Authorization"
+          },
+          rateLimit: {
+            requests: 1000,
+            period: "hour"
+          }
+        }
+      ]);
     }
-  }, [selectedAdapters, navigate]);
+
+    if (!schemas || Object.keys(schemas).length === 0) {
+      console.log("🛡️ Setting fallback schemas");
+      actions.setSchemas({
+        "KYC Verification": {
+          service: "KYC Verification",
+          provider: "Default Adapter",
+          version: "v1",
+          requiredFields: ["customerId", "documents"],
+          optionalFields: ["metadata"],
+          endpoints: {
+            "verify": "/api/kyc/verify",
+            "status": "/api/kyc/status"
+          }
+        }
+      });
+    }
+  }, [selectedAdapters, schemas, actions]);
+
+  // STEP 4: DEBUG LOG (OPTIONAL)
+  useEffect(() => {
+    console.log("🔍 Field Mapping Debug:");
+    console.log("📊 Parsed Data:", parsedData);
+    console.log("🔌 Selected Adapters:", selectedAdapters);
+    console.log("📋 Schemas:", schemas);
+    console.log("📝 Parsed Fields:", parsedFields);
+  }, [parsedData, selectedAdapters, schemas, parsedFields]);
 
   // Suggest field mappings based on field names (as specified)
   const suggestMappings = useCallback(() => {
@@ -184,15 +230,15 @@ const FieldMapping: React.FC<FieldMappingProps> = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center p-8 bg-white rounded-lg shadow-sm border border-gray-200">
           <ExclamationTriangleIcon className="w-16 h-16 mx-auto text-yellow-500 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Data Not Available</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">⚠️ No Data Found</h2>
           <p className="text-gray-600 mb-6">
-            No data available. Please complete previous step.
+            Using fallback data...
           </p>
           <button
-            onClick={() => navigate('/registry')}
+            onClick={() => navigate('/workflow')}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            Go to Adapter Registry
+            Continue with Fallback Data
           </button>
         </div>
       </div>
